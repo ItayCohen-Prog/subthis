@@ -75,8 +75,8 @@ uv tool install subthis</pre><button class="copy-btn" data-done="copied">copy</b
       <p>Setup is a guided, one-time wizard. It:</p>
       <ul>
         <li>checks that ffmpeg is installed, and tells you how to install it if not;</li>
-        <li>asks whether you have used the OpenAI API before — answer <strong>no</strong> and it walks you through creating an account, adding 5 dollars of prepaid credit (the minimum; it covers roughly five hours of video), and creating a key, opening each page in your browser;</li>
-        <li>tests the key you paste immediately: an invalid or revoked key re-prompts, an account with no credit gets the billing link and a re-check;</li>
+        <li>explains each step before touching your browser: pressing Enter opens OpenAI's key page (no account yet? the site signs you up first) with click-by-click instructions for creating and copying a key;</li>
+        <li>tests the key you paste immediately: an invalid or revoked key re-prompts, an account with no credit gets click-by-click guidance for adding the 5-dollar minimum of prepaid credit (roughly five hours of video) and a re-check;</li>
         <li>saves the key to subthis's own settings folder (<code>~/.config/subthis</code> on Linux and macOS, <code>%APPDATA%\subthis</code> on Windows) and nowhere else.</li>
       </ul>
       <p>An <code>OPENAI_API_KEY</code> environment variable, if set, overrides the stored key.</p>

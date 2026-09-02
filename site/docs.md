@@ -34,7 +34,7 @@ Open a new terminal after installing uv. If `subthis` is not found afterwards, r
 
     subthis setup
 
-A guided one-time wizard: checks ffmpeg (with per-OS install hints), asks whether you have used the OpenAI API before (answering no gets a three-step walkthrough: account, 5 dollars of prepaid credit, key creation, each page opened in the browser), tests the pasted key immediately (invalid/revoked keys re-prompt; an account without credit gets the billing link and a re-check), and saves the key to the config directory (`~/.config/subthis` on Linux/macOS, `%APPDATA%\subthis` on Windows). An `OPENAI_API_KEY` environment variable overrides the stored key.
+A guided one-time wizard: checks ffmpeg (with per-OS install hints), explains each step before opening the browser (pressing Enter opens OpenAI's key page; the site handles account signup itself), tests the pasted key immediately (invalid/revoked keys re-prompt; an account without credit gets click-by-click guidance for adding the 5-dollar minimum of prepaid credit and a re-check), and saves the key to the config directory (`~/.config/subthis` on Linux/macOS, `%APPDATA%\subthis` on Windows). An `OPENAI_API_KEY` environment variable overrides the stored key.
 
 ## 3. Make subtitles
 

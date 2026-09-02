@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.7.0"
+__version__ = "1.7.1"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -34,7 +34,6 @@ QUOTA_PROBE_URL = "https://api.openai.com/v1/chat/completions"
 QUOTA_PROBE_MODEL = "gpt-5-nano"
 API_KEYS_URL = "https://platform.openai.com/api-keys"
 BILLING_URL = "https://platform.openai.com/settings/organization/billing/overview"
-SIGNUP_URL = "https://platform.openai.com/signup"
 PYPI_JSON_URL = "https://pypi.org/pypi/subthis/json"
 DOCS_URL = "https://subthis.webivize.com/docs/"
 PROJECT_TERMS_FILENAME = "subthis-terms.txt"
@@ -908,40 +907,6 @@ def _classify_key(api_key: str) -> tuple[str, str]:
     return "ok", ""
 
 
-def _guide_first_timer(interactive: bool) -> None:
-    print("\nNo problem. There are three short steps, all on OpenAI's website.\n")
-
-    print(_paint("Step 1 of 3: create an OpenAI account", "bold"))
-    print("  If you already log in to ChatGPT, use that same account and skip ahead.")
-    print("  Sign up or log in here:")
-    _open_page(SIGNUP_URL, interactive)
-    if interactive:
-        _ask("  Press Enter when you are logged in... ")
-
-    print("\n" + _paint("Step 2 of 3: add 5 dollars of credit", "bold"))
-    print(
-        "  The transcription service is prepaid, like a phone card. 5 dollars is\n"
-        "  the minimum and covers roughly five hours of video. On the page below:\n"
-        "    1. Click 'Add payment method' and enter your card details.\n"
-        "    2. Click 'Add to credit balance' and choose 5 dollars.\n"
-        "    3. If it offers 'auto-reload' (topping up automatically), you can\n"
-        "       switch that off.\n"
-        "  The page:"
-    )
-    _open_page(BILLING_URL, interactive)
-    if interactive:
-        _ask("  Press Enter when your balance shows the credit... ")
-
-    print("\n" + _paint("Step 3 of 3: create your key", "bold"))
-    print(
-        "  On the page below, click 'Create new secret key', type any name you\n"
-        "  like (for example: subthis), and click 'Create secret key'. Then click\n"
-        "  'Copy'. Important: the key is shown only this once, so copy it now.\n"
-        "  The page:"
-    )
-    _open_page(API_KEYS_URL, interactive)
-
-
 def _prompt_for_working_key(existing_key: str, interactive: bool) -> str:
     attempts = 5 if interactive else 1
     for _ in range(attempts):
@@ -966,16 +931,24 @@ def _prompt_for_working_key(existing_key: str, interactive: bool) -> str:
                 "OpenAI does not accept this key. It may be mistyped, expired,\n"
                 "    or revoked. Copy a fresh one from:"
             )
-            _open_page(API_KEYS_URL, interactive)
+            print("    " + _paint(API_KEYS_URL, "cyan", "bold"))
             existing_key = ""
             continue
         if status == "no_credit":
             _say_bad("The key itself works, but the account behind it has no credit yet.")
-            print("    Add at least 5 dollars here:")
-            _open_page(BILLING_URL, interactive)
+            print(
+                "    The transcription service is prepaid, like a phone card. In the\n"
+                "    billing page that opens next:\n"
+                "      1. Click 'Add payment method' and enter your card details.\n"
+                "      2. Click 'Add to credit balance' and choose 5 dollars (the\n"
+                "         minimum; it covers roughly five hours of video).\n"
+                "      3. If it offers auto-reload, you can switch that off."
+            )
             if not interactive:
                 raise SubthisError(f"The OpenAI account has no credit. Add credit at {BILLING_URL}")
-            _ask("    Press Enter after adding credit and it will be checked again... ")
+            _ask("    Press Enter to open the billing page... ")
+            _open_page(BILLING_URL, interactive)
+            _ask("    Press Enter once your balance shows the credit, and it will be checked again... ")
             existing_key = api_key
             continue
         _say_note(
@@ -1348,12 +1321,17 @@ def run_setup() -> int:
     if existing_key:
         _say_ok("A key is already saved. Press Enter at the prompt below to keep it.")
     else:
-        answer = _ask("Have you used the OpenAI API before? Type y (yes) or n (no): ").lower()
-        if answer.startswith("n"):
-            _guide_first_timer(interactive)
-        else:
-            print("\nCopy a key from OpenAI's key page:")
-            _open_page(API_KEYS_URL, interactive)
+        print(
+            "Here's what happens next:\n"
+            "  1. OpenAI's key page opens in your browser. No account yet? The site\n"
+            "     will have you sign up first (same login as ChatGPT, and it's quick).\n"
+            "  2. On the key page, click 'Create new secret key', give it any name,\n"
+            "     click 'Create secret key', then 'Copy'. It is shown only this once.\n"
+            "  3. Come back here and paste it.\n"
+        )
+        if interactive:
+            _ask("Press Enter to open the key page in your browser... ")
+        _open_page(API_KEYS_URL, interactive)
 
     api_key = _prompt_for_working_key(existing_key, interactive)
     _write_env_file(api_key)
