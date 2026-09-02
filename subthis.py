@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.6.1"
+__version__ = "1.7.0"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -122,6 +122,16 @@ class AudioChunk:
     duration: float
 
 
+CAPTION_DEFAULTS: dict[str, object] = {
+    "words": 3,                       # words per caption line (1-3)
+    "pause": PAUSE_SPLIT_SECONDS,     # silence that starts a new line
+    "hang": CUE_HANG_SECONDS,         # how long a line outlives its last word
+    "min": MIN_CUE_SECONDS,           # minimum time a line stays on screen
+    "punctuation": "remove",          # remove | keep
+    "silence": "cut",                 # cut | hold (hold = line stays up through silences)
+}
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     api_key: str
@@ -129,6 +139,11 @@ class Config:
     terms: list[str]
     languages: list[str]
     max_words: int
+    pause_split: float = PAUSE_SPLIT_SECONDS
+    cue_hang: float = CUE_HANG_SECONDS
+    min_cue: float = MIN_CUE_SECONDS
+    hold_through_silence: bool = False
+    keep_punctuation: bool = False
 
 
 def _normalized_token(text: str) -> str:
@@ -293,13 +308,29 @@ def _balanced_groups(words: Sequence[TimedWord], max_words: int) -> list[list[Ti
     return groups
 
 
-def make_cues(words: Sequence[TimedWord], media_end: float, max_words: int = 3) -> list[Cue]:
+def make_cues(
+    words: Sequence[TimedWord],
+    media_end: float,
+    max_words: int = 3,
+    *,
+    pause_split: float = PAUSE_SPLIT_SECONDS,
+    hang: float = CUE_HANG_SECONDS,
+    min_cue: float = MIN_CUE_SECONDS,
+    hold_through_silence: bool = False,
+    keep_punctuation: bool = False,
+) -> list[Cue]:
     if not 1 <= max_words <= 3:
         raise ValueError("max_words must be between 1 and 3")
     clean_words = [
         TimedWord(cleaned, word.start, word.end)
         for word in words
-        if (cleaned := strip_caption_punctuation(word.text))
+        if (
+            cleaned := (
+                " ".join(word.text.split())
+                if keep_punctuation
+                else strip_caption_punctuation(word.text)
+            )
+        )
     ]
     if not clean_words:
         return []
@@ -308,7 +339,7 @@ def make_cues(words: Sequence[TimedWord], media_end: float, max_words: int = 3) 
     # (7 words become 3+2+2, never 3+3+1) so no orphan cue trails a sentence.
     phrases: list[list[TimedWord]] = [[clean_words[0]]]
     for previous, word in zip(clean_words, clean_words[1:]):
-        if word.start - previous.end > PAUSE_SPLIT_SECONDS:
+        if word.start - previous.end > pause_split:
             phrases.append([word])
         else:
             phrases[-1].append(word)
@@ -319,10 +350,13 @@ def make_cues(words: Sequence[TimedWord], media_end: float, max_words: int = 3) 
         start = group[0].start
         next_start = groups[index + 1][0].start if index + 1 < len(groups) else media_end
         latest_allowed = max(next_start - CUE_GAP_SECONDS, start + 0.001)
-        end = min(latest_allowed, group[-1].end + CUE_HANG_SECONDS, media_end)
+        if hold_through_silence:
+            end = min(latest_allowed, media_end)
+        else:
+            end = min(latest_allowed, group[-1].end + hang, media_end)
         end = max(end, start + 0.001)
-        if end - start < MIN_CUE_SECONDS:
-            end = max(end, min(start + MIN_CUE_SECONDS, latest_allowed, media_end))
+        if end - start < min_cue:
+            end = max(end, min(start + min_cue, latest_allowed, media_end))
             end = max(end, start + 0.001)
         cues.append(Cue(start, end, " ".join(word.text for word in group)))
     return cues
@@ -340,10 +374,10 @@ def _has_rtl_text(text: str) -> bool:
     return any(unicodedata.bidirectional(char) in ("R", "AL") for char in text)
 
 
-def render_srt(cues: Sequence[Cue]) -> str:
+def render_srt(cues: Sequence[Cue], keep_punctuation: bool = False) -> str:
     blocks = []
     for index, cue in enumerate(cues, start=1):
-        line = strip_caption_punctuation(cue.text)
+        line = cue.text if keep_punctuation else strip_caption_punctuation(cue.text)
         if _has_rtl_text(line):
             # SRT carries no direction metadata; a leading RLM keeps a cue
             # that starts with an English word in Hebrew reading order.
@@ -963,16 +997,113 @@ def _write_env_file(api_key: str) -> None:
         os.chmod(ENV_FILE, 0o600)
 
 
+def _caption_settings() -> dict[str, object]:
+    merged = dict(CAPTION_DEFAULTS)
+    saved = _load_settings().get("captions")
+    if isinstance(saved, dict):
+        for name, value in saved.items():
+            if name in merged:
+                merged[name] = value
+    with contextlib.suppress(TypeError, ValueError):
+        merged["words"] = min(3, max(1, int(merged["words"])))  # type: ignore[arg-type]
+        for name in ("pause", "hang", "min"):
+            merged[name] = float(merged[name])  # type: ignore[arg-type]
+    if merged["punctuation"] not in ("keep", "remove"):
+        merged["punctuation"] = CAPTION_DEFAULTS["punctuation"]
+    if merged["silence"] not in ("hold", "cut"):
+        merged["silence"] = CAPTION_DEFAULTS["silence"]
+    return merged
+
+
+_CAPTION_HELP: dict[str, str] = {
+    "words": "words per caption line, 1 to 3",
+    "pause": "a silence this long (seconds) starts a new line",
+    "hang": "how long a line stays after its last word (seconds)",
+    "min": "minimum time a line stays on screen (seconds)",
+    "punctuation": "'remove' cleans captions, 'keep' leaves punctuation in",
+    "silence": "'cut' ends a line after the hang time, 'hold' keeps it up until the next line",
+}
+
+
+def _config_captions(rest: Sequence[str]) -> int:
+    if rest and rest[0] == "reset":
+        settings = _load_settings()
+        settings.pop("captions", None)
+        _save_settings(settings)
+        _say_ok("Caption settings are back to the defaults.")
+        return 0
+    current = _caption_settings()
+    if not rest:
+        print("Caption settings (change one with: subthis config captions <name> <value>):\n")
+        saved = _load_settings().get("captions")
+        overridden = set(saved.keys()) if isinstance(saved, dict) else set()
+        for name, value in current.items():
+            shown = f"{value:.2f}".rstrip("0").rstrip(".") if isinstance(value, float) else str(value)
+            origin = "(changed)" if name in overridden else "(default)"
+            print(f"  {name:<12} {shown:<8} {origin:<10} {_CAPTION_HELP[name]}")
+        print("\n  reset        put everything back to the defaults")
+        return 0
+    name = rest[0]
+    if name not in CAPTION_DEFAULTS:
+        raise SubthisError(
+            "Unknown caption setting: " + name + "\n"
+            "Settings: words, pause, hang, min, punctuation, silence (or reset)."
+        )
+    if len(rest) < 2:
+        value = current[name]
+        shown = f"{value:.2f}".rstrip("0").rstrip(".") if isinstance(value, float) else str(value)
+        print(f"{name} is {shown}  ({_CAPTION_HELP[name]})")
+        print(f"Change it with: subthis config captions {name} <value>")
+        return 0
+    raw = rest[1].strip().lower()
+    value: object
+    if name == "words":
+        try:
+            value = int(raw)
+        except ValueError:
+            raise SubthisError("words must be 1, 2 or 3.") from None
+        if value not in (1, 2, 3):
+            raise SubthisError("words must be 1, 2 or 3.")
+    elif name in ("pause", "hang", "min"):
+        try:
+            value = float(raw)
+        except ValueError:
+            raise SubthisError(f"{name} must be a number of seconds, like 0.5") from None
+        if not 0 <= value <= 10 or (name == "pause" and value <= 0):
+            raise SubthisError(f"{name} must be between {'just above 0' if name == 'pause' else '0'} and 10 seconds.")
+    elif name == "punctuation":
+        if raw not in ("keep", "remove"):
+            raise SubthisError("punctuation must be 'keep' or 'remove'.")
+        value = raw
+    else:
+        if raw not in ("hold", "cut"):
+            raise SubthisError("silence must be 'hold' or 'cut'.")
+        value = raw
+    settings = _load_settings()
+    captions = settings.get("captions")
+    if not isinstance(captions, dict):
+        captions = {}
+    captions[name] = value
+    settings["captions"] = captions
+    _save_settings(settings)
+    shown = f"{value:.2f}".rstrip("0").rstrip(".") if isinstance(value, float) else str(value)
+    _say_ok(f"Saved: {name} = {shown}. This applies to every video from now on.")
+    return 0
+
+
 def run_config(rest: Sequence[str]) -> int:
     interactive = sys.stdin is not None and sys.stdin.isatty()
-    if not rest or rest[0] not in ("key", "terms", "open"):
+    if not rest or rest[0] not in ("key", "terms", "open", "captions"):
         raise SubthisError(
             "Usage:\n"
             "  subthis config key     change your saved OpenAI key\n"
             "  subthis config terms   review, add, and remove your saved terms\n"
             "  subthis config terms \"term 'multi word term'\"   add terms directly\n"
-            "  subthis config open on|off   open the folder when subtitles are done"
+            "  subthis config open on|off   open the folder when subtitles are done\n"
+            "  subthis config captions      view and tune caption timing and style"
         )
+    if rest[0] == "captions":
+        return _config_captions(rest[1:])
     if rest[0] == "open":
         value = rest[1].lower() if len(rest) > 1 else ""
         if value not in ("on", "off"):
@@ -1304,7 +1435,17 @@ def transcribe_video(video: Path, config: Config) -> tuple[list[Cue], float]:
                 ]
             )
         merged = merge_chunk_words(all_words)
-        return make_cues(merged, duration, config.max_words), duration
+        cues = make_cues(
+            merged,
+            duration,
+            config.max_words,
+            pause_split=config.pause_split,
+            hang=config.cue_hang,
+            min_cue=config.min_cue,
+            hold_through_silence=config.hold_through_silence,
+            keep_punctuation=config.keep_punctuation,
+        )
+        return cues, duration
 
 
 def _help_epilog() -> str:
@@ -1350,6 +1491,7 @@ other commands:
   subthis setup            first-time setup (API key, checks)
   subthis config key       replace your saved OpenAI key
   subthis config terms     review, add, and remove saved terms
+  subthis config captions  tune caption timing and style
   subthis config open on   open the folder with the file when done
 """
 
@@ -1368,8 +1510,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-words",
         type=int,
         choices=(1, 2, 3),
-        default=3,
-        help="maximum words per subtitle (default: 3)",
+        default=None,
+        help="maximum words per subtitle (default: 3, or your 'subthis config captions words' setting)",
     )
     parser.add_argument(
         "--term",
@@ -1433,12 +1575,18 @@ def run(argv: Sequence[str] | None = None) -> int:
     for term_string in args.term:
         additions.extend(_parse_term_string(term_string))
     aliases, terms = load_terms(args.terms_file.expanduser(), additions)
+    captions = _caption_settings()
     config = Config(
         api_key=_load_api_key(),
         aliases=aliases,
         terms=terms,
         languages=args.languages or ["he", "en"],
-        max_words=args.max_words,
+        max_words=args.max_words if args.max_words is not None else int(captions["words"]),
+        pause_split=float(captions["pause"]),
+        cue_hang=float(captions["hang"]),
+        min_cue=float(captions["min"]),
+        hold_through_silence=captions["silence"] == "hold",
+        keep_punctuation=captions["punctuation"] == "keep",
     )
     cues, _duration = transcribe_video(video, config)
     if not cues:
@@ -1446,7 +1594,9 @@ def run(argv: Sequence[str] | None = None) -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary_output = output.with_name(f".{output.name}.subthis-{os.getpid()}.tmp")
     try:
-        temporary_output.write_text(render_srt(cues), encoding="utf-8")
+        temporary_output.write_text(
+            render_srt(cues, keep_punctuation=config.keep_punctuation), encoding="utf-8"
+        )
         os.replace(temporary_output, output)
     finally:
         with contextlib.suppress(FileNotFoundError):

@@ -143,6 +143,50 @@ class CueTests(unittest.TestCase):
         self.assertEqual(lines[6], "pure English here")
 
 
+class CaptionSettingsTests(unittest.TestCase):
+    def test_hold_through_silence_keeps_cue_up_until_the_next_one(self) -> None:
+        words = [
+            subthis.TimedWord("לפני", 0.0, 0.4),
+            subthis.TimedWord("אחרי", 5.0, 5.4),
+        ]
+
+        cues = subthis.make_cues(words, media_end=10.0, hold_through_silence=True)
+
+        self.assertAlmostEqual(cues[0].end, 5.0 - subthis.CUE_GAP_SECONDS)
+
+    def test_keep_punctuation_passes_it_through_to_the_srt(self) -> None:
+        words = [subthis.TimedWord("שלום,", 0.0, 0.5), subthis.TimedWord("OpenAI!", 0.6, 1.1)]
+
+        cues = subthis.make_cues(words, media_end=2.0, keep_punctuation=True)
+        rendered = subthis.render_srt(cues, keep_punctuation=True)
+
+        self.assertIn("שלום, OpenAI!", rendered)
+
+    def test_config_captions_saves_validates_and_resets(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(subthis, "CONFIG_DIR", Path(tmp)), mock.patch.object(
+                subthis, "SETTINGS_FILE", Path(tmp) / "settings.json"
+            ):
+                self.assertEqual(subthis.run_config(["captions", "words", "2"]), 0)
+                self.assertEqual(subthis.run_config(["captions", "silence", "hold"]), 0)
+                merged = subthis._caption_settings()
+                self.assertEqual(merged["words"], 2)
+                self.assertEqual(merged["silence"], "hold")
+                self.assertEqual(merged["pause"], subthis.PAUSE_SPLIT_SECONDS)
+
+                with self.assertRaises(subthis.SubthisError):
+                    subthis.run_config(["captions", "words", "9"])
+                with self.assertRaises(subthis.SubthisError):
+                    subthis.run_config(["captions", "punctuation", "maybe"])
+                with self.assertRaises(subthis.SubthisError):
+                    subthis.run_config(["captions", "pause", "0"])
+
+                self.assertEqual(subthis.run_config(["captions", "reset"]), 0)
+                self.assertEqual(subthis._caption_settings(), subthis.CAPTION_DEFAULTS)
+
+
 class TimedWordCanonicalizationTests(unittest.TestCase):
     def test_merges_multiword_alias_run_into_one_anchor_with_combined_timing(self) -> None:
         words = [
