@@ -69,14 +69,15 @@ class AlignmentTests(unittest.TestCase):
 
 
 class CueTests(unittest.TestCase):
-    def test_removes_all_unicode_punctuation_from_caption_text(self) -> None:
+    def test_removes_punctuation_but_keeps_in_word_geresh_and_apostrophes(self) -> None:
         actual = subthis.strip_caption_punctuation(
             "שלום, OpenAI! מה נשמע? Next.js — כן. צ׳אט-בוט"
         )
 
-        self.assertEqual(actual, "שלום OpenAI מה נשמע Nextjs כן צאטבוט")
+        self.assertEqual(actual, "שלום OpenAI מה נשמע Nextjs כן צ׳אטבוט")
+        self.assertEqual(subthis.strip_caption_punctuation("ג'מיני, don't!"), "ג'מיני don't")
 
-    def test_groups_at_most_three_words_and_holds_cue_across_pause(self) -> None:
+    def test_splits_at_pauses_balances_groups_and_never_bridges_silence(self) -> None:
         words = [
             subthis.TimedWord("אחד", 0.0, 0.2),
             subthis.TimedWord("שתיים", 0.25, 0.5),
@@ -89,11 +90,20 @@ class CueTests(unittest.TestCase):
 
         cues = subthis.make_cues(words, media_end=10.0, max_words=3)
 
-        self.assertEqual([cue.text for cue in cues], ["אחד שתיים שלוש", "ארבע חמש שש", "שבע"])
-        self.assertEqual(cues[0].end, 3.0)
-        self.assertEqual(cues[1].end, 4.0)
-        self.assertEqual(cues[2].end, 4.8)
+        # the 2.2s silence starts a new phrase, and the 4-word phrase balances
+        # into 2+2 instead of leaving a lone orphan word
+        self.assertEqual([cue.text for cue in cues], ["אחד שתיים שלוש", "ארבע חמש", "שש שבע"])
+        self.assertAlmostEqual(cues[0].end, 1.3)  # hang cap, not lingering to 3.0
+        self.assertAlmostEqual(cues[1].end, 3.47)
+        self.assertAlmostEqual(cues[2].end, 4.8)
         self.assertTrue(all(len(cue.text.split()) <= 3 for cue in cues))
+
+    def test_short_cue_borrows_time_to_reach_minimum_duration(self) -> None:
+        words = [subthis.TimedWord("רגע", 1.0, 1.2)]
+
+        cues = subthis.make_cues(words, media_end=10.0, max_words=3)
+
+        self.assertAlmostEqual(cues[0].end - cues[0].start, subthis.MIN_CUE_SECONDS)
 
     def test_make_cues_never_emits_punctuation(self) -> None:
         words = [
@@ -116,9 +126,83 @@ class CueTests(unittest.TestCase):
 
         self.assertEqual(
             actual,
-            "1\n00:00:00,000 --> 00:00:01,235\nשלום OpenAI\n\n"
-            "2\n00:00:01,235 --> 00:00:02,000\nמה נשמע\n",
+            "1\n00:00:00,000 --> 00:00:01,235\n‏שלום OpenAI\n\n"
+            "2\n00:00:01,235 --> 00:00:02,000\n‏מה נשמע\n",
         )
+
+    def test_rtl_mark_prefixes_hebrew_cues_but_not_english_ones(self) -> None:
+        rendered = subthis.render_srt(
+            [
+                subthis.Cue(0.0, 1.0, "Claude עושה דברים"),
+                subthis.Cue(1.0, 2.0, "pure English here"),
+            ]
+        )
+
+        lines = rendered.splitlines()
+        self.assertTrue(lines[2].startswith("‏"))
+        self.assertEqual(lines[6], "pure English here")
+
+
+class TimedWordCanonicalizationTests(unittest.TestCase):
+    def test_merges_multiword_alias_run_into_one_anchor_with_combined_timing(self) -> None:
+        words = [
+            subthis.TimedWord("עם", 0.5, 0.7),
+            subthis.TimedWord("אופן", 0.9, 1.1),
+            subthis.TimedWord("איי", 1.1, 1.3),
+            subthis.TimedWord("איי", 1.3, 1.5),
+            subthis.TimedWord("היום", 1.5, 1.9),
+        ]
+
+        actual = subthis.canonicalize_timed_words(words, subthis.DEFAULT_ALIASES)
+
+        self.assertEqual([w.text for w in actual], ["עם", "OpenAI", "היום"])
+        self.assertAlmostEqual(actual[1].start, 0.9)
+        self.assertAlmostEqual(actual[1].end, 1.5)
+
+    def test_single_word_alias_becomes_canonical(self) -> None:
+        actual = subthis.canonicalize_timed_words(
+            [subthis.TimedWord("קלוד", 2.0, 2.4)], subthis.DEFAULT_ALIASES
+        )
+
+        self.assertEqual(actual[0].text, "Claude")
+
+
+class ReplaceAlignmentTests(unittest.TestCase):
+    def test_equal_length_replace_keeps_real_word_timings(self) -> None:
+        timed = [
+            subthis.TimedWord("עשרים", 1.0, 1.4),
+            subthis.TimedWord("וחמש", 1.6, 2.0),
+        ]
+
+        actual = subthis.align_accurate_words("25 שקלים", timed)
+
+        self.assertEqual([w.text for w in actual], ["25", "שקלים"])
+        self.assertAlmostEqual(actual[0].start, 1.0)
+        self.assertAlmostEqual(actual[0].end, 1.4)
+        self.assertAlmostEqual(actual[1].start, 1.6)
+        self.assertAlmostEqual(actual[1].end, 2.0)
+
+
+class NonSpeechFilterTests(unittest.TestCase):
+    def test_drops_words_inside_flagged_segments_and_keeps_the_rest(self) -> None:
+        words = [
+            subthis.TimedWord("אמיתי", 1.0, 1.4),
+            subthis.TimedWord("הזיה", 6.0, 6.4),
+        ]
+        segments = [
+            {"start": 0.0, "end": 4.0, "no_speech_prob": 0.1, "avg_logprob": -0.3},
+            {"start": 5.0, "end": 8.0, "no_speech_prob": 0.9, "avg_logprob": -1.6},
+        ]
+
+        actual = subthis.filter_non_speech_words(words, segments)
+
+        self.assertEqual([w.text for w in actual], ["אמיתי"])
+
+    def test_missing_or_malformed_segments_keep_all_words(self) -> None:
+        words = [subthis.TimedWord("מילה", 0.0, 0.5)]
+
+        self.assertEqual(subthis.filter_non_speech_words(words, None), words)
+        self.assertEqual(subthis.filter_non_speech_words(words, ["junk", 5]), words)
 
 
 class ChunkMergeTests(unittest.TestCase):

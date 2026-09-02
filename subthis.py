@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -59,6 +59,10 @@ TIMING_MODEL = "whisper-1"
 MAX_UPLOAD_BYTES = 24 * 1024 * 1024
 CHUNK_SECONDS = 60 * 60
 CHUNK_OVERLAP_SECONDS = 1.5
+PAUSE_SPLIT_SECONDS = 0.4   # a silence this long starts a new phrase
+CUE_HANG_SECONDS = 0.5      # how long a cue may outlive its last word
+CUE_GAP_SECONDS = 0.08      # minimum gap kept before the next cue
+MIN_CUE_SECONDS = 0.83      # Netflix floor: 5/6 of a second on screen
 
 
 DEFAULT_ALIASES: dict[str, list[str]] = {
@@ -153,10 +157,58 @@ def canonicalize_terms(text: str, aliases: dict[str, list[str]]) -> str:
 
 
 def strip_caption_punctuation(text: str) -> str:
-    without_punctuation = "".join(
-        char for char in text if not unicodedata.category(char).startswith("P")
-    )
-    return " ".join(without_punctuation.split())
+    # Apostrophes and the Hebrew geresh stay when they sit inside a word:
+    # stripping them turns ג'מיני into גמיני and don't into dont.
+    characters = list(text)
+    kept: list[str] = []
+    for index, char in enumerate(characters):
+        if not unicodedata.category(char).startswith("P"):
+            kept.append(char)
+            continue
+        if char in "'׳’":
+            before = characters[index - 1] if index else ""
+            after = characters[index + 1] if index + 1 < len(characters) else ""
+            if before.isalpha() and after.isalpha():
+                kept.append(char)
+    return " ".join("".join(kept).split())
+
+
+def canonicalize_timed_words(
+    words: Sequence[TimedWord], aliases: dict[str, list[str]]
+) -> list[TimedWord]:
+    """Replace alias runs in the timing stream with their canonical term.
+
+    The timing model hears "אופן איי איי" where the accurate model writes
+    "OpenAI"; folding both to the canonical spelling turns exactly the words
+    the user cares about into alignment anchors instead of mismatches.
+    """
+    lookup: dict[tuple[str, ...], str] = {}
+    for canonical, spellings in aliases.items():
+        for spelling in {canonical, *spellings}:
+            key = tuple(
+                token for token in (_normalized_token(part) for part in spelling.split()) if token
+            )
+            if key:
+                lookup.setdefault(key, canonical)
+    if not lookup:
+        return list(words)
+    longest = max(len(key) for key in lookup)
+    normalized = [_normalized_token(word.text) for word in words]
+    result: list[TimedWord] = []
+    index = 0
+    while index < len(words):
+        for size in range(min(longest, len(words) - index), 0, -1):
+            canonical = lookup.get(tuple(normalized[index : index + size]))
+            if canonical:
+                result.append(
+                    TimedWord(canonical, words[index].start, words[index + size - 1].end)
+                )
+                index += size
+                break
+        else:
+            result.append(words[index])
+            index += 1
+    return result
 
 
 def _distribute_words(tokens: Sequence[str], start: float, end: float) -> list[TimedWord]:
@@ -198,6 +250,15 @@ def align_accurate_words(text: str, timed_words: Sequence[TimedWord]) -> list[Ti
             continue
         if tag == "delete":
             continue
+        if tag == "replace" and (a_end - a_start) == (w_end - w_start):
+            # Same number of words on both sides (a phonetic respelling, a
+            # number written differently): keep each timing word's real span
+            # instead of smearing the block evenly.
+            aligned.extend(
+                TimedWord(token, source.start, source.end)
+                for token, source in zip(tokens, timed_words[w_start:w_end])
+            )
+            continue
         if w_start < w_end:
             interval_start = timed_words[w_start].start
             interval_end = timed_words[w_end - 1].end
@@ -220,6 +281,18 @@ def align_accurate_words(text: str, timed_words: Sequence[TimedWord]) -> list[Ti
     return monotonic
 
 
+def _balanced_groups(words: Sequence[TimedWord], max_words: int) -> list[list[TimedWord]]:
+    count = -(-len(words) // max_words)
+    base, extra = divmod(len(words), count)
+    groups: list[list[TimedWord]] = []
+    index = 0
+    for position in range(count):
+        size = base + (1 if position < extra else 0)
+        groups.append(list(words[index : index + size]))
+        index += size
+    return groups
+
+
 def make_cues(words: Sequence[TimedWord], media_end: float, max_words: int = 3) -> list[Cue]:
     if not 1 <= max_words <= 3:
         raise ValueError("max_words must be between 1 and 3")
@@ -231,18 +304,26 @@ def make_cues(words: Sequence[TimedWord], media_end: float, max_words: int = 3) 
     if not clean_words:
         return []
 
-    groups = [
-        list(clean_words[index : index + max_words])
-        for index in range(0, len(clean_words), max_words)
-    ]
+    # Split into phrases at real pauses, then balance each phrase into groups
+    # (7 words become 3+2+2, never 3+3+1) so no orphan cue trails a sentence.
+    phrases: list[list[TimedWord]] = [[clean_words[0]]]
+    for previous, word in zip(clean_words, clean_words[1:]):
+        if word.start - previous.end > PAUSE_SPLIT_SECONDS:
+            phrases.append([word])
+        else:
+            phrases[-1].append(word)
+    groups = [group for phrase in phrases for group in _balanced_groups(phrase, max_words)]
+
     cues: list[Cue] = []
     for index, group in enumerate(groups):
         start = group[0].start
-        if index + 1 < len(groups):
-            end = groups[index + 1][0].start
-        else:
-            end = min(media_end, group[-1].end + 0.5)
-        end = max(start + 0.001, end)
+        next_start = groups[index + 1][0].start if index + 1 < len(groups) else media_end
+        latest_allowed = max(next_start - CUE_GAP_SECONDS, start + 0.001)
+        end = min(latest_allowed, group[-1].end + CUE_HANG_SECONDS, media_end)
+        end = max(end, start + 0.001)
+        if end - start < MIN_CUE_SECONDS:
+            end = max(end, min(start + MIN_CUE_SECONDS, latest_allowed, media_end))
+            end = max(end, start + 0.001)
         cues.append(Cue(start, end, " ".join(word.text for word in group)))
     return cues
 
@@ -255,12 +336,19 @@ def _srt_time(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
 
 
+def _has_rtl_text(text: str) -> bool:
+    return any(unicodedata.bidirectional(char) in ("R", "AL") for char in text)
+
+
 def render_srt(cues: Sequence[Cue]) -> str:
-    blocks = [
-        f"{index}\n{_srt_time(cue.start)} --> {_srt_time(cue.end)}\n"
-        f"{strip_caption_punctuation(cue.text)}"
-        for index, cue in enumerate(cues, start=1)
-    ]
+    blocks = []
+    for index, cue in enumerate(cues, start=1):
+        line = strip_caption_punctuation(cue.text)
+        if _has_rtl_text(line):
+            # SRT carries no direction metadata; a leading RLM keeps a cue
+            # that starts with an English word in Hebrew reading order.
+            line = "‏" + line
+        blocks.append(f"{index}\n{_srt_time(cue.start)} --> {_srt_time(cue.end)}\n{line}")
     return "\n\n".join(blocks) + ("\n" if blocks else "")
 
 
@@ -464,12 +552,50 @@ def transcribe_accurate(chunk: AudioChunk, config: Config) -> str:
     return strip_caption_punctuation(canonical)
 
 
+def _non_speech_spans(segments: object) -> list[tuple[float, float]]:
+    """Spans whisper itself marks as probably-not-speech (hallucination guard)."""
+    spans: list[tuple[float, float]] = []
+    if not isinstance(segments, list):
+        return spans
+    for segment in segments:
+        if not isinstance(segment, dict):
+            continue
+        no_speech = segment.get("no_speech_prob")
+        logprob = segment.get("avg_logprob")
+        start = segment.get("start")
+        end = segment.get("end")
+        if (
+            isinstance(no_speech, (int, float))
+            and isinstance(logprob, (int, float))
+            and isinstance(start, (int, float))
+            and isinstance(end, (int, float))
+            and no_speech > 0.6
+            and logprob < -1.0
+        ):
+            spans.append((float(start), float(end)))
+    return spans
+
+
+def filter_non_speech_words(
+    words: Sequence[TimedWord], segments: object
+) -> list[TimedWord]:
+    spans = _non_speech_spans(segments)
+    if not spans:
+        return list(words)
+    return [
+        word
+        for word in words
+        if not any(start <= (word.start + word.end) / 2 <= end for start, end in spans)
+    ]
+
+
 def transcribe_timing(chunk: AudioChunk, config: Config) -> list[TimedWord]:
     timing_prompt = ", ".join(config.terms[:30])
     fields: list[tuple[str, str]] = [
         ("model", TIMING_MODEL),
         ("response_format", "verbose_json"),
         ("timestamp_granularities[]", "word"),
+        ("timestamp_granularities[]", "segment"),
         ("language", config.languages[0] if config.languages else "he"),
     ]
     if timing_prompt:
@@ -487,7 +613,7 @@ def transcribe_timing(chunk: AudioChunk, config: Config) -> list[TimedWord]:
         end = item.get("end")
         if isinstance(text, str) and isinstance(start, (int, float)) and isinstance(end, (int, float)):
             words.append(TimedWord(text.strip(), float(start), float(end)))
-    return words
+    return filter_non_speech_words(words, response.get("segments"))
 
 
 def _load_api_key() -> str:
@@ -1169,6 +1295,7 @@ def transcribe_video(video: Path, config: Config) -> tuple[list[Cue], float]:
                 continue
             if not accurate_text:
                 raise SubthisError("The accurate transcription was empty while speech timing was detected.")
+            timing_words = canonicalize_timed_words(timing_words, config.aliases)
             aligned = align_accurate_words(accurate_text, timing_words)
             all_words.append(
                 [
