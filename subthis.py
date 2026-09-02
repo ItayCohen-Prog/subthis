@@ -550,7 +550,15 @@ def run_setup() -> int:
         else "OpenAI API key: "
     )
     try:
-        entered = getpass.getpass(prompt).strip()
+        if sys.stdin is None:
+            entered = ""
+        elif not sys.stdin.isatty():
+            # Piped input: Windows getpass reads the console device and would
+            # hang forever, so read stdin directly on every platform.
+            print(prompt, end="", flush=True)
+            entered = sys.stdin.readline().strip()
+        else:
+            entered = getpass.getpass(prompt).strip()
     except EOFError:
         entered = ""
     api_key = entered or existing_key
