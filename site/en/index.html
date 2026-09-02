@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=202609021544">
+<link rel="stylesheet" href="/assets/style.css?v=202609021608">
 </head>
 <body>
 <svg hidden aria-hidden="true" style="display:none">
@@ -21,6 +21,8 @@
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
   <symbol id="i-terminal" viewBox="0 0 24 24"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></symbol>
+  <symbol id="i-captions" viewBox="0 0 24 24"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></symbol>
 </svg>
 
 <header class="site-header">
@@ -123,17 +125,33 @@
       <p class="cue-label"><span class="n">2</span><span>00:00:24,000 --&gt; 00:00:39,500</span></p>
       <h2>Watch it work</h2>
       <p class="lede">One command in, one subtitle file out. This is a real run.</p>
-      <div class="term" data-demo='[
-        {"type":"cmd","text":"subthis lecture.mp4"},
-        {"type":"out","html":"Transcribing chunk 1/1...","wait":1400},
-        {"type":"out","html":"","wait":150},
-        {"type":"out","html":"<span class=\"ok\">  ✓ </span>Done! 214 subtitles were created.","wait":350},
-        {"type":"out","html":"  Your subtitle file is here:","wait":250},
-        {"type":"out","html":"    <span class=\"yel\">~/Videos/lecture.srt</span>","wait":2600}
-      ]'>
-        <div class="term-bar"><i></i><i></i><i></i><span>terminal</span></div>
-        <pre dir="ltr"><span class="prompt">$</span> <span class="cursor"></span></pre>
+      <div class="scene" data-scene dir="ltr">
+        <div class="shelf">
+          <div class="file" data-file="mp4"><svg class="ic"><use href="#i-film"/></svg><span>lecture.mp4</span></div>
+          <div class="file srt" data-file="srt"><svg class="ic"><use href="#i-captions"/></svg><span>lecture.srt</span></div>
+        </div>
+        <div class="term" data-term>
+          <div class="term-bar"><i></i><i></i><i></i><span>terminal</span></div>
+          <pre dir="ltr"><span class="prompt">$</span> <span class="cursor"></span></pre>
+        </div>
+        <div class="editor" data-editor>
+          <div class="term-bar"><i></i><i></i><i></i><span>video editor</span></div>
+          <div class="ed-preview"><div class="ed-caption" data-caption dir="ltr">Welcome to the lecture</div></div>
+          <div class="ed-tracks">
+            <div class="ed-track"><span class="ed-label">V1</span><i class="ed-clip video"></i></div>
+            <div class="ed-track"><span class="ed-label">A1</span><i class="ed-clip audio"></i></div>
+            <div class="ed-track subs" data-subs><span class="ed-label">SRT</span></div>
+          </div>
+        </div>
+        <div class="drag-ghost" data-ghost aria-hidden="true"></div>
+        <div class="pointer" data-pointer aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L16 20l-2.5 1-3-7.5L6 18z"/></svg></div>
       </div>
+      <p class="nle-row"><span class="nle-lead">The SRT opens directly in:</span>
+        <span class="nle"><img src="/assets/logos/premiere.svg" alt="" width="22" height="22">Premiere Pro</span>
+        <span class="nle"><img src="/assets/logos/resolve.png" alt="" width="22" height="22">DaVinci Resolve</span>
+        <span class="nle"><img src="/assets/logos/finalcut.png" alt="" width="22" height="22">Final Cut Pro</span>
+        <span class="nle"><img src="/assets/logos/capcut.png" alt="" height="14">CapCut</span>
+      </p>
     </div>
   </section>
 
@@ -318,6 +336,6 @@ Paste your OpenAI key here and press Enter: sk-•••••••••••
   </div>
 </footer>
 
-<script src="/assets/site.js?v=202609021544"></script>
+<script src="/assets/site.js?v=202609021608"></script>
 </body>
 </html>

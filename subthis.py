@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.8.1"
+__version__ = "1.8.2"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -133,7 +133,7 @@ CAPTION_DEFAULTS: dict[str, object] = {
     "min": MIN_CUE_SECONDS,           # minimum time a line stays on screen
     "gap": CUE_GAP_SECONDS,           # empty space kept between one line and the next
     "punctuation": "remove",          # remove | keep
-    "silence": "cut",                 # cut | hold (hold = line stays up through silences)
+    "silence": "hold",                # hold = a line stays up until the next one | cut = ends after the hang time
 }
 
 
@@ -148,7 +148,7 @@ class Config:
     cue_hang: float = CUE_HANG_SECONDS
     min_cue: float = MIN_CUE_SECONDS
     cue_gap: float = CUE_GAP_SECONDS
-    hold_through_silence: bool = False
+    hold_through_silence: bool = True
     keep_punctuation: bool = False
 
 
@@ -323,7 +323,7 @@ def make_cues(
     hang: float = CUE_HANG_SECONDS,
     min_cue: float = MIN_CUE_SECONDS,
     gap: float = CUE_GAP_SECONDS,
-    hold_through_silence: bool = False,
+    hold_through_silence: bool = True,
     keep_punctuation: bool = False,
 ) -> list[Cue]:
     if not 1 <= max_words <= 3:
@@ -1304,7 +1304,7 @@ _CAPTION_HELP: dict[str, str] = {
     "min": "minimum time a line stays on screen (seconds)",
     "gap": "empty space kept between one line and the next (seconds)",
     "punctuation": "'remove' cleans captions, 'keep' leaves punctuation in",
-    "silence": "'cut' ends a line after the hang time, 'hold' keeps it up until the next line",
+    "silence": "'hold' keeps a line up until the next one starts (captions connect), 'cut' ends it after the hang time",
 }
 
 

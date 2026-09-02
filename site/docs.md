@@ -65,7 +65,7 @@ Per-folder terms: put a `subthis-terms.txt` file next to your videos; it is pick
 | `subthis config key` | Replace the saved OpenAI key; verified (validity + credit) before saving. Keys are never accepted as CLI arguments. |
 | `subthis config terms` | Interactive terms editor; with a quoted argument, append directly. |
 | `subthis config open on` / `off` | Also open the file manager with the finished file selected. |
-| `subthis config captions` | View and tune caption behavior (saved for all future videos; defaults follow industry standards): `words` per line (1-3), `pause` / `hang` / `min` / `gap` in seconds (gap defaults to 0), `punctuation keep\|remove`, `silence hold\|cut`, `reset`. Example: `subthis config captions words 2`. |
+| `subthis config captions` | View and tune caption behavior (saved for all future videos; defaults follow industry standards): `words` per line (1-3), `pause` / `hang` / `min` / `gap` in seconds (gap defaults to 0), `punctuation keep\|remove`, `silence hold\|cut` (hold is the default: captions connect), `reset`. Example: `subthis config captions words 2`. |
 
 ## 6. Updates
 

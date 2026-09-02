@@ -98,7 +98,7 @@ class CueTests(unittest.TestCase):
             subthis.TimedWord("שבע", 4.0, 4.3),
         ]
 
-        cues = subthis.make_cues(words, media_end=10.0, max_words=3)
+        cues = subthis.make_cues(words, media_end=10.0, max_words=3, hold_through_silence=False)
 
         # the 2.2s silence starts a new phrase, and the 4-word phrase balances
         # into 2+2 instead of leaving a lone orphan word
@@ -111,7 +111,7 @@ class CueTests(unittest.TestCase):
     def test_short_cue_borrows_time_to_reach_minimum_duration(self) -> None:
         words = [subthis.TimedWord("רגע", 1.0, 1.2)]
 
-        cues = subthis.make_cues(words, media_end=10.0, max_words=3)
+        cues = subthis.make_cues(words, media_end=10.0, max_words=3, hold_through_silence=False)
 
         self.assertAlmostEqual(cues[0].end - cues[0].start, subthis.MIN_CUE_SECONDS)
 
@@ -164,10 +164,17 @@ class CaptionSettingsTests(unittest.TestCase):
 
         self.assertAlmostEqual(cues[0].end, 5.0)  # default gap is zero
 
+    def test_default_connects_each_caption_to_the_next(self) -> None:
+        words = [subthis.TimedWord("לפני", 0.0, 0.4), subthis.TimedWord("אחרי", 5.0, 5.4)]
+
+        cues = subthis.make_cues(words, media_end=10.0)
+
+        self.assertAlmostEqual(cues[0].end, cues[1].start)
+
     def test_gap_setting_keeps_space_before_the_next_cue(self) -> None:
         words = [subthis.TimedWord("א", 0.0, 0.4), subthis.TimedWord("ב", 0.5, 0.9)]
 
-        cues = subthis.make_cues(words, media_end=5.0, max_words=1, gap=0.1)
+        cues = subthis.make_cues(words, media_end=5.0, max_words=1, gap=0.1, hold_through_silence=False)
 
         self.assertAlmostEqual(cues[0].end, 0.4)  # 0.5 - 0.1 gap, below the hang cap
 
@@ -191,6 +198,8 @@ class CaptionSettingsTests(unittest.TestCase):
                 merged = subthis._caption_settings()
                 self.assertEqual(merged["words"], 2)
                 self.assertEqual(merged["silence"], "hold")
+                self.assertEqual(subthis.run_config(["captions", "silence", "cut"]), 0)
+                self.assertEqual(subthis._caption_settings()["silence"], "cut")
                 self.assertEqual(merged["pause"], subthis.PAUSE_SPLIT_SECONDS)
 
                 with self.assertRaises(subthis.SubthisError):

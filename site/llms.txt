@@ -9,7 +9,7 @@ Key facts:
 - Main command: `subthis <video> [-o out.srt] [--max-words 1|2|3] [--term "A 'B C'"] [--language he --language en] [--force]`
 - On success, stdout ends with the absolute path of the written .srt file. Exit codes: 0 success, 1 handled error (stderr line prefixed "subthis:"), 130 cancelled.
 - Terms syntax: spaces separate terms, single quotes group multi-word terms. Per-folder terms: a subthis-terms.txt file next to the video. Global terms: `subthis config terms "..."`.
-- Other commands: `subthis setup` (guided key setup), `subthis config key` (replace key, validated), `subthis config terms` (interactive editor), `subthis config open on|off` (reveal file when done), `subthis config captions` (tune caption behavior: words 1-3, pause/hang/min/gap seconds, punctuation keep|remove, silence hold|cut, reset), `subthis docs` (open documentation).
+- Other commands: `subthis setup` (guided key setup), `subthis config key` (replace key, validated), `subthis config terms` (interactive editor), `subthis config open on|off` (reveal file when done), `subthis config captions` (tune caption behavior: words 1-3, pause/hang/min/gap seconds, punctuation keep|remove, silence hold|cut (default hold), reset), `subthis docs` (open documentation).
 
 ## Docs
 

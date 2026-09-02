@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=202609021544">
+<link rel="stylesheet" href="/assets/style.css?v=202609021608">
 </head>
 <body>
 <svg hidden aria-hidden="true" style="display:none">
@@ -123,7 +123,7 @@ DaVinci Resolve = דה וינצ'י ריזולב | Davinci Resolve</pre>
           <tr><td dir="ltr"><code>subthis config key</code></td><td>Replace the saved OpenAI key. The new key is verified (validity and credit) before saving, exactly like in setup. Keys are never accepted as command-line arguments.</td></tr>
           <tr><td dir="ltr"><code>subthis config terms</code></td><td>Open the interactive terms editor; with a quoted string argument, append terms directly.</td></tr>
           <tr><td dir="ltr"><code>subthis config open on</code></td><td>After finishing, also open your file manager with the subtitle file selected (Explorer, Finder, or the Linux FileManager1 interface). <code>off</code> turns it back off.</td></tr>
-          <tr><td dir="ltr"><code>subthis config captions</code></td><td>View and tune caption behavior; saved for every future video, defaults match subtitle-industry standards. Settings: <code>words</code> per line (1-3), <code>pause</code> (a silence this long starts a new line), <code>hang</code> (how long a line outlives its last word), <code>min</code> (minimum time on screen), <code>gap</code> (empty space before the next line, default 0; all in seconds), <code>punctuation keep|remove</code>, and <code>silence hold|cut</code> (hold keeps a line up through silences). <code>reset</code> restores the defaults. Example: <code>subthis config captions words 2</code>.</td></tr>
+          <tr><td dir="ltr"><code>subthis config captions</code></td><td>View and tune caption behavior; saved for every future video, defaults match subtitle-industry standards. Settings: <code>words</code> per line (1-3), <code>pause</code> (a silence this long starts a new line), <code>hang</code> (how long a line outlives its last word), <code>min</code> (minimum time on screen), <code>gap</code> (empty space before the next line, default 0; all in seconds), <code>punctuation keep|remove</code>, and <code>silence hold|cut</code> (hold, the default, keeps each line up until the next one starts so captions connect; cut ends it after the hang time). <code>reset</code> restores the defaults. Example: <code>subthis config captions words 2</code>.</td></tr>
         </tbody>
       </table>
     </section>
@@ -192,6 +192,6 @@ OPENAI_API_KEY=sk-... subthis input.mp4 -o output.srt --force
   </div>
 </footer>
 
-<script src="/assets/site.js?v=202609021544"></script>
+<script src="/assets/site.js?v=202609021608"></script>
 </body>
 </html>
