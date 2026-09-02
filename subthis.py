@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -712,7 +712,28 @@ def _banner(title: str) -> None:
     print(_paint(f"╭{line}╮\n│ {title} │\n╰{line}╯", "cyan"))
 
 
+def _flush_pending_input() -> None:
+    """Discard keystrokes typed before a prompt appeared.
+
+    Someone pressing Enter during a pause (the update check, a network
+    call) must not have that Enter answer the next question for them.
+    """
+    with contextlib.suppress(Exception):
+        if sys.stdin is None or not sys.stdin.isatty():
+            return
+        if sys.platform == "win32":
+            import msvcrt
+
+            while msvcrt.kbhit():
+                msvcrt.getwch()
+        else:
+            import termios
+
+            termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+
+
 def _ask(prompt: str) -> str:
+    _flush_pending_input()
     try:
         return input(_paint(prompt, "bold")).strip()
     except EOFError:
@@ -773,6 +794,7 @@ def _maybe_offer_update(arguments: Sequence[str]) -> None:
         return
     if sys.stdout is None or not sys.stdout.isatty():
         return
+    print(_paint("checking for a newer version...", "dim"), flush=True)
     latest = _latest_pypi_version()
     if not latest or _version_tuple(latest) <= _version_tuple(__version__):
         return
