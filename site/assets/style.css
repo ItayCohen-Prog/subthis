@@ -231,6 +231,26 @@ pre.code {
 .card h3::before { content: "▸ "; color: var(--caption); }
 .card p { margin: 0; color: var(--muted); font-size: .95rem; }
 
+/* ---------- price comparison ---------- */
+.price-table { border-collapse: collapse; width: 100%; font-size: .95rem; margin-block: 18px 6px; }
+.price-table th, .price-table td { border: 1px solid var(--line); padding: 12px 16px; text-align: start; }
+.price-table th { background: var(--surface); font-weight: 500; color: var(--muted); }
+.price-table td { background: var(--surface); }
+.price-table td.ours {
+  color: var(--caption); font-family: var(--font-mono); font-weight: 600;
+  background: color-mix(in srgb, var(--caption) 7%, var(--surface));
+}
+.verdict {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+  margin-block: 22px 8px;
+}
+.verdict mark { background: var(--caption); color: var(--caption-ink); border-radius: 6px; padding-inline: 8px; }
+.footnote { color: var(--muted); font-size: .8rem; max-width: 680px; }
+
+/* RTL: the SRT cue label keeps LTR content but sits at the reading start edge */
+[dir="rtl"] .cue-label { justify-content: flex-end; }
+
 /* ---------- how it works ---------- */
 .pipeline { display: grid; gap: 14px; }
 .pipeline .stage {

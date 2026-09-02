@@ -1,0 +1,3 @@
+RewriteEngine On
+RewriteRule ^he/docs/?$ /docs/ [R=301,L]
+RewriteRule ^he/?$ / [R=301,L]

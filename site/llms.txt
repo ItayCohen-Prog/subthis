@@ -14,8 +14,8 @@ Key facts:
 ## Docs
 
 - [Full documentation (markdown)](https://subthis.webivize.com/docs.md): install, setup, usage, terms, config, updates, troubleshooting, CLI reference
-- [Documentation (HTML, English)](https://subthis.webivize.com/docs/)
-- [Documentation (HTML, Hebrew)](https://subthis.webivize.com/he/docs/)
+- [Documentation (HTML, English)](https://subthis.webivize.com/en/docs/)
+- [Documentation (HTML, Hebrew, site default)](https://subthis.webivize.com/docs/)
 
 ## Source
 

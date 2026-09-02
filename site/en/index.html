@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>subthis — still paying for subtitles in 2026?</title>
+<meta name="description" content="subthis is an open-source command-line tool that turns a video into accurate SRT captions, three words per cue, built for Hebrew with English terms mixed in.">
+<link rel="alternate" hreflang="he" href="https://subthis.webivize.com/">
+<link rel="alternate" hreflang="en" href="https://subthis.webivize.com/en/">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="/en/"><span class="cap">אב</span>subthis</a>
+    <nav class="site-nav" aria-label="Site">
+      <a href="/en/docs/">Docs</a>
+      <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
+      <a href="https://pypi.org/project/subthis/">PyPI</a>
+      <div class="lang-switch" aria-label="Language">
+        <a class="active" href="/en/" aria-current="true">EN</a>
+        <a href="/" lang="he">עב</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div class="screen" aria-hidden="true">
+        <span class="timecode">00:00:00,000</span>
+        <div class="cue" data-cues='["שלום, קוראים לזה","<mark>subthis</mark>","it makes subtitles","שלוש מילים <mark>בכל פעם</mark>","Hebrew and English","באותו <mark>משפט</mark>","from your terminal","בלי <mark>עריכה ידנית</mark>","ready in minutes"]'>שלום, קוראים לזה</div>
+      </div>
+      <h1>Still <mark>paying</mark> for subtitles in 2026?</h1>
+      <p class="sub">subthis does the same job, open source. Accurate .srt captions of at most three words per cue, for Hebrew with English terms mixed in. No subscription, no minute packages: you pay only OpenAI for what you use, about one cent per minute of video.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="#install">Install subthis</a>
+        <a class="btn" href="/en/docs/">Read the docs</a>
+      </div>
+      <p class="badges">MIT license · Python, no dependencies · Windows, macOS, Linux</p>
+    </div>
+  </section>
+
+  <section class="block reveal" id="price">
+    <div class="wrap">
+      <p class="cue-label"><span class="n">1</span><span>00:00:04,000 --&gt; 00:00:24,000</span></p>
+      <h2>Let's do the math</h2>
+      <p class="lede">Subtitle services sell transcription minutes as a monthly subscription. With subthis you pay only for the usage itself, directly to OpenAI. Here are the numbers, side by side:</p>
+      <div style="overflow-x:auto">
+      <table class="price-table">
+        <thead><tr><th>Package at kaps.co.il*</th><th>Minutes / month</th><th>Their price</th><th>Same minutes with subthis</th></tr></thead>
+        <tbody>
+          <tr><td>Starter editor</td><td>30</td><td>$22.9 / month</td><td class="ours">≈ $0.35</td></tr>
+          <tr><td>Professional freelancer</td><td>120</td><td>$34.9 / month</td><td class="ours">≈ $1.30</td></tr>
+          <tr><td>Business plan</td><td>500</td><td>$119 / month</td><td class="ours">≈ $5.30</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="verdict">The same 500 minutes: <mark>≈ $5 instead of $119</mark>. Every month.</p>
+      <p class="footnote">* Prices from kaps.co.il's public pricing page, annual billing, as of September 2026. The subthis figure uses OpenAI's API prices: two transcription passes, $0.0045 + $0.006 per minute. subthis itself is free and open source, with no minute limits and no per-seat limits.</p>
+    </div>
+  </section>
+
+  <section class="block reveal" id="demo">
+    <div class="wrap">
+      <p class="cue-label"><span class="n">2</span><span>00:00:24,000 --&gt; 00:00:39,500</span></p>
+      <h2>Watch it work</h2>
+      <p class="lede">One command in, one subtitle file out. This is a real run.</p>
+      <div class="term" data-demo='[
+        {"type":"cmd","text":"subthis lecture.mp4"},
+        {"type":"out","html":"Transcribing chunk 1/1...","wait":1400},
+        {"type":"out","html":"","wait":150},
+        {"type":"out","html":"<span class=\"ok\">  ✓ </span>Done! 214 subtitles were created.","wait":350},
+        {"type":"out","html":"  Your subtitle file is here:","wait":250},
+        {"type":"out","html":"    <span class=\"yel\">~/Videos/lecture.srt</span>","wait":2600}
+      ]'>
+        <div class="term-bar"><i></i><i></i><i></i><span>terminal</span></div>
+        <pre dir="ltr"><span class="prompt">$</span> <span class="cursor"></span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="block reveal" id="install">
+    <div class="wrap">
+      <p class="cue-label"><span class="n">3</span><span>00:00:39,500 --&gt; 00:01:22,000</span></p>
+      <h2>Install from zero</h2>
+      <p class="lede">Nothing on your computer yet? That's fine. These steps assume a blank machine and take about five minutes.</p>
+      <p class="os-note">It looks like you're on <strong data-os-name='{"windows":"Windows","macos":"macOS","linux":"Linux"}'>…</strong> — wrong? Pick another tab.</p>
+      <div class="tabs" role="tablist" aria-label="Operating system">
+        <button role="tab" data-os="windows" aria-selected="false">Windows</button>
+        <button role="tab" data-os="macos" aria-selected="false">macOS</button>
+        <button role="tab" data-os="linux" aria-selected="false">Linux</button>
+      </div>
+
+      <div class="os-pane" data-os="windows" hidden>
+        <ol class="steps">
+          <li>
+            <h3>Open a terminal</h3>
+            <p>Press the Windows key, type <strong>powershell</strong>, press Enter.</p>
+          </li>
+          <li>
+            <h3>Install uv (it brings Python with it)</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <p>Close PowerShell and open it again so it learns the new command.</p>
+          </li>
+          <li>
+            <h3>Install ffmpeg (reads the sound from videos)</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">winget install ffmpeg</pre><button class="copy-btn" data-done="copied">copy</button></div>
+          </li>
+          <li>
+            <h3>Install subthis and run setup</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
+subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
+          </li>
+        </ol>
+      </div>
+
+      <div class="os-pane" data-os="macos" hidden>
+        <ol class="steps">
+          <li>
+            <h3>Open a terminal</h3>
+            <p>Press <strong>Cmd + Space</strong>, type <strong>terminal</strong>, press Enter.</p>
+          </li>
+          <li>
+            <h3>Install uv (it brings Python with it)</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <p>Close Terminal and open it again so it learns the new command.</p>
+          </li>
+          <li>
+            <h3>Install ffmpeg (reads the sound from videos)</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">brew install ffmpeg</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <p>No Homebrew yet? Install it first with the one command on <a href="https://brew.sh">brew.sh</a>, then run the line above.</p>
+          </li>
+          <li>
+            <h3>Install subthis and run setup</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
+subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
+          </li>
+        </ol>
+      </div>
+
+      <div class="os-pane" data-os="linux" hidden>
+        <ol class="steps">
+          <li>
+            <h3>Open your terminal</h3>
+            <p>Any terminal app works.</p>
+          </li>
+          <li>
+            <h3>Install uv (it brings Python with it)</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <p>Open a new terminal afterwards so it learns the new command.</p>
+          </li>
+          <li>
+            <h3>Install ffmpeg (reads the sound from videos)</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">sudo apt install ffmpeg      # Debian / Ubuntu
+sudo dnf install ffmpeg      # Fedora
+sudo pacman -S ffmpeg        # Arch</pre><button class="copy-btn" data-done="copied">copy</button></div>
+          </li>
+          <li>
+            <h3>Install subthis and run setup</h3>
+            <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
+subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="block reveal" id="how">
+    <div class="wrap">
+      <p class="cue-label"><span class="n">4</span><span>00:01:22,000 --&gt; 00:01:51,000</span></p>
+      <h2>How it works</h2>
+      <p class="lede">Two transcriptions are better than one. subthis runs both and merges the best of each.</p>
+      <div class="pipeline">
+        <div class="stage">
+          <span class="tc">00:00 → 00:20</span>
+          <div><h3>Listen twice</h3><p>The audio goes to OpenAI twice: one model for the most accurate wording, another for exact word-by-word timing.</p></div>
+        </div>
+        <div class="stage">
+          <span class="tc">00:20 → 00:40</span>
+          <div><h3>Align every word</h3><p>The accurate words get matched to the precise timestamps, so "OpenAI" lands exactly where the speaker said it, even when the timing model heard "אופן איי איי".</p></div>
+        </div>
+        <div class="stage">
+          <span class="tc">00:40 → done</span>
+          <div><h3>Write short cues</h3><p>Words are grouped into cues of at most three, timed to hold across pauses, and written as a clean .srt file next to your video.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block reveal" id="features">
+    <div class="wrap">
+      <p class="cue-label"><span class="n">5</span><span>00:01:51,000 --&gt; 00:02:24,000</span></p>
+      <h2>What you get</h2>
+      <div class="grid">
+        <div class="card"><h3>Hebrew meets English</h3><p>Company names, tools, and jargon keep their original English spelling inside Hebrew speech. קלוד becomes Claude, every time.</p></div>
+        <div class="card"><h3>Terms you teach</h3><p>Add your own names and phrases per run, per folder, or globally, with an interactive editor for the saved list.</p></div>
+        <div class="card"><h3>Setup that guides</h3><p>First time with the OpenAI API? Setup walks you to a key and five dollars of credit, and tests the key before saving it.</p></div>
+        <div class="card"><h3>Errors that help</h3><p>A revoked key or an empty balance produces a plain sentence with the exact link to fix it, not a stack trace.</p></div>
+        <div class="card"><h3>Updates offer themselves</h3><p>When a new version ships, subthis asks once, updates, and reruns your exact command from where you were.</p></div>
+        <div class="card"><h3>Long videos welcome</h3><p>Hours-long recordings get chunked, transcribed, and merged automatically, staying under upload limits.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block reveal" id="setup-shot">
+    <div class="wrap">
+      <p class="cue-label"><span class="n">6</span><span>00:02:24,000 --&gt; 00:02:46,000</span></p>
+      <h2>Setup, exactly as you'll see it</h2>
+      <p class="lede">Real output from <code>subthis setup</code>, captured unedited.</p>
+      <div class="term">
+        <div class="term-bar"><i></i><i></i><i></i><span>subthis setup</span></div>
+        <pre dir="ltr"><span class="cyn">╭───────────────────────────────╮
+│ Welcome to subthis  ·  v1.4.0 │
+╰───────────────────────────────╯</span>
+
+subthis turns a video into subtitles. This one-time setup takes about
+two minutes. Nothing on your computer is changed except subthis's own
+settings folder: ~/.config/subthis
+
+<span class="ok">  ✓ </span>ffmpeg is installed (subthis uses it to read the sound from your videos)
+
+subthis sends your video's audio to OpenAI (the company behind ChatGPT)
+to turn the speech into text. For that you need your own OpenAI key:
+a long code starting with sk- that acts like a password. It is saved
+only on this computer.
+
+Have you used the OpenAI API before? Type y (yes) or n (no): y
+
+Copy a key from OpenAI's key page:
+    <span class="cyn">https://platform.openai.com/api-keys</span>
+
+Paste your OpenAI key here and press Enter: sk-••••••••••••
+  Checking your key with OpenAI...
+<span class="ok">  ✓ </span>The key works and your account has credit.
+<span class="ok">  ✓ </span>Key saved to ~/.config/subthis/.env
+<span class="ok">  ✓ </span>Created a terms file at ~/.config/subthis/terms.txt
+
+<span class="cyn">╭─────────────────╮
+│ You're all set! │
+╰─────────────────╯</span></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>subthis · MIT license</span>
+    <a href="/en/docs/">Docs</a>
+    <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
+    <a href="https://pypi.org/project/subthis/">PyPI</a>
+    <span class="spacer"></span>
+    <a href="/llms.txt">llms.txt</a>
+  </div>
+</footer>
+
+<script src="/assets/site.js"></script>
+</body>
+</html>
