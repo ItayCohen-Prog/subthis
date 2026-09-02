@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.8.2"
+__version__ = "1.8.3"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -37,7 +37,7 @@ QUOTA_PROBE_URL = "https://api.openai.com/v1/chat/completions"
 QUOTA_PROBE_MODEL = "gpt-5-nano"
 API_KEYS_URL = "https://platform.openai.com/api-keys"
 BILLING_URL = "https://platform.openai.com/settings/organization/billing/overview"
-PYPI_JSON_URL = "https://pypi.org/pypi/subthis/json"
+PYPI_INDEX_URL = "https://pypi.org/simple/subthis/"  # the index installers use; the JSON API lags behind it
 DOCS_URL = "https://subthis.webivize.com/docs/"
 PROJECT_TERMS_FILENAME = "subthis-terms.txt"
 
@@ -977,12 +977,17 @@ def _version_tuple(text: str) -> tuple[int, ...]:
 
 def _latest_pypi_version() -> str | None:
     request = urllib.request.Request(
-        PYPI_JSON_URL, headers={"User-Agent": f"subthis/{__version__}"}
+        PYPI_INDEX_URL,
+        headers={
+            "User-Agent": f"subthis/{__version__}",
+            "Accept": "application/vnd.pypi.simple.v1+json",
+        },
     )
     try:
         with urllib.request.urlopen(request, timeout=3) as response:
-            version = json.loads(response.read()).get("info", {}).get("version")
-        return version if isinstance(version, str) else None
+            versions = json.loads(response.read()).get("versions", [])
+        releases = [v for v in versions if isinstance(v, str) and re.fullmatch(r"\d+(\.\d+)*", v)]
+        return max(releases, key=_version_tuple) if releases else None
     except Exception:
         return None
 
@@ -1008,8 +1013,8 @@ def _maybe_offer_update(arguments: Sequence[str]) -> None:
         return
     settings = _load_settings()
     last_check = settings.get("last_update_check")
-    if isinstance(last_check, (int, float)) and time.time() - last_check < 24 * 3600:
-        return  # once a day is plenty
+    if isinstance(last_check, (int, float)) and time.time() - last_check < 3600:
+        return  # once an hour: cheap, and a fresh release shows up the same day
     print(_paint("checking for a newer version...", "dim"), flush=True)
     latest = _latest_pypi_version()
     if latest:

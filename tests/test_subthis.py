@@ -427,7 +427,7 @@ class UpdateOfferTests(unittest.TestCase):
             subthis._maybe_offer_update(["video.mp4"])
             output = "\n".join(str(call) for call in printed.call_args_list)
             self.assertIn(subthis._update_command(), output)
-            # a second run the same day skips the network entirely
+            # a second run within the hour skips the network entirely
             with mock.patch.object(subthis, "_latest_pypi_version") as fetch:
                 subthis._maybe_offer_update(["video.mp4"])
             fetch.assert_not_called()
