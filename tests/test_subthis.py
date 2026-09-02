@@ -16,6 +16,15 @@ sys.modules["subthis"] = subthis
 assert SPEC.loader is not None
 SPEC.loader.exec_module(subthis)
 
+# The suite must never read or write the real user config, whatever a test forgets to patch.
+import tempfile as _tempfile
+
+_SANDBOX = _tempfile.TemporaryDirectory(prefix="subthis-tests-")
+subthis.CONFIG_DIR = Path(_SANDBOX.name)
+subthis.ENV_FILE = subthis.CONFIG_DIR / ".env"
+subthis.TERMS_FILE = subthis.CONFIG_DIR / "terms.txt"
+subthis.SETTINGS_FILE = subthis.CONFIG_DIR / "settings.json"
+
 
 class CanonicalTermsTests(unittest.TestCase):
     def test_replaces_hebrew_and_english_aliases_with_canonical_terms(self) -> None:
