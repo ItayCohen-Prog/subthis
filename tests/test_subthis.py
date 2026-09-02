@@ -159,6 +159,27 @@ class ConfigDirTests(unittest.TestCase):
         self.assertIn("AppData", str(actual))
 
 
+class HelpTests(unittest.TestCase):
+    def test_bare_invocation_and_help_word_show_help_and_exit_zero(self) -> None:
+        for arguments in ([], ["help"]):
+            with mock.patch("sys.stdout") as stdout:
+                self.assertEqual(subthis.run(arguments), 0)
+            self.assertTrue(stdout.write.called)
+
+    def test_epilog_mentions_only_the_current_platform(self) -> None:
+        cases = {
+            "win32": ("powershell", ["Cmd+Space", "Finder"]),
+            "darwin": ("Cmd+Space", ["powershell", "File Explorer"]),
+            "linux": ("terminal application", ["powershell", "Cmd+Space"]),
+        }
+        for platform, (expected, absent) in cases.items():
+            with mock.patch.object(subthis.sys, "platform", platform):
+                epilog = subthis._help_epilog()
+            self.assertIn(expected, epilog, platform)
+            for text in absent:
+                self.assertNotIn(text, epilog, platform)
+
+
 class SetupDispatchTests(unittest.TestCase):
     def test_setup_rejects_extra_arguments(self) -> None:
         with self.assertRaises(subthis.SubthisError):

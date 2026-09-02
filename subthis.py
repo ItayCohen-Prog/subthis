@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -643,11 +643,44 @@ def transcribe_video(video: Path, config: Config) -> tuple[list[Cue], float]:
         return make_cues(merged, duration, config.max_words), duration
 
 
+def _help_epilog() -> str:
+    if sys.platform == "win32":
+        open_terminal = (
+            "press the Windows key, type powershell, press Enter to open a terminal"
+        )
+        example = r"subthis C:\Users\you\Videos\lesson.mp4"
+        drag_source = "File Explorer"
+    elif sys.platform == "darwin":
+        open_terminal = (
+            "press Cmd+Space, type terminal, press Enter to open a terminal"
+        )
+        example = "subthis ~/Movies/lesson.mp4"
+        drag_source = "Finder"
+    else:
+        open_terminal = "open your terminal application"
+        example = "subthis ~/Videos/lesson.mp4"
+        drag_source = "your file manager"
+    return f"""
+quick start (first time):
+  1. {open_terminal}
+  2. type: subthis setup
+     (one-time: stores your OpenAI API key)
+  3. type: subthis followed by a space, then your video file
+     for example: {example}
+
+tip: instead of typing the file location, type "subthis " and drag the
+video from {drag_source} into this window, then press Enter.
+
+the captions are saved as an .srt file next to your video.
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="subthis",
         description="Create accurate Hebrew/English SRT captions with at most three words per cue.",
-        epilog="Run 'subthis setup' once after installing to store your OpenAI API key.",
+        epilog=_help_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"subthis {__version__}")
     parser.add_argument("video", type=Path, help="video or audio file to transcribe")
@@ -678,7 +711,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
-    if arguments and arguments[0] == "setup":
+    if not arguments or arguments[0] == "help":
+        build_parser().print_help()
+        return 0
+    if arguments[0] == "setup":
         if len(arguments) > 1:
             raise SubthisError("setup takes no further arguments.")
         return run_setup()
