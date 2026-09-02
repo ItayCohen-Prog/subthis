@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.6.0"
+__version__ = "1.6.1"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -59,10 +59,10 @@ TIMING_MODEL = "whisper-1"
 MAX_UPLOAD_BYTES = 24 * 1024 * 1024
 CHUNK_SECONDS = 60 * 60
 CHUNK_OVERLAP_SECONDS = 1.5
-PAUSE_SPLIT_SECONDS = 0.4   # a silence this long starts a new phrase
-CUE_HANG_SECONDS = 0.5      # how long a cue may outlive its last word
-CUE_GAP_SECONDS = 0.08      # minimum gap kept before the next cue
-MIN_CUE_SECONDS = 0.83      # Netflix floor: 5/6 of a second on screen
+PAUSE_SPLIT_SECONDS = 0.5   # stable-ts split_by_gap default
+CUE_HANG_SECONDS = 0.5      # Netflix: out-time at least half a second past the audio
+CUE_GAP_SECONDS = 0.08      # Netflix minimum gap: 2 frames at 24fps
+MIN_CUE_SECONDS = 5 / 6     # Netflix minimum event duration: 20 frames at 24fps
 
 
 DEFAULT_ALIASES: dict[str, list[str]] = {
