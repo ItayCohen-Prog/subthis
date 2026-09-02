@@ -7,26 +7,29 @@ import argparse
 import contextlib
 import dataclasses
 import difflib
+import http.client
 import json
 import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.7.2"
+__version__ = "1.8.0"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -45,7 +48,8 @@ def _config_dir() -> Path:
         if appdata:
             return Path(appdata) / "subthis"
     xdg = os.environ.get("XDG_CONFIG_HOME", "").strip()
-    base = Path(xdg) if xdg else Path.home() / ".config"
+    # The XDG spec says a relative value must be ignored.
+    base = Path(xdg) if xdg and Path(xdg).is_absolute() else Path.home() / ".config"
     return base / "subthis"
 
 
@@ -55,9 +59,10 @@ TERMS_FILE = CONFIG_DIR / "terms.txt"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 ACCURATE_MODEL = "gpt-transcribe"
 TIMING_MODEL = "whisper-1"
-MAX_UPLOAD_BYTES = 24 * 1024 * 1024
-CHUNK_SECONDS = 60 * 60
+MAX_UPLOAD_BYTES = 24_000_000
+CHUNK_SECONDS = 20 * 60         # gpt-4o-transcribe family caps a request at 1500s of audio
 CHUNK_OVERLAP_SECONDS = 1.5
+SHORT_TAIL_SECONDS = 120        # a leftover this short joins the previous chunk instead
 PAUSE_SPLIT_SECONDS = 0.5   # stable-ts split_by_gap default
 CUE_HANG_SECONDS = 0.5      # Netflix: out-time at least half a second past the audio
 CUE_GAP_SECONDS = 0.08      # Netflix minimum gap: 2 frames at 24fps
@@ -66,7 +71,7 @@ MIN_CUE_SECONDS = 5 / 6     # Netflix minimum event duration: 20 frames at 24fps
 
 DEFAULT_ALIASES: dict[str, list[str]] = {
     "OpenAI": ["OpenAI", "Open AI", "אופן איי איי", "אופן איי-איי", "אופן איי"],
-    "Claude": ["Claude", "Clod", "קלוד", "קלאוד"],
+    "Claude": ["Claude", "Clod", "קלוד"],  # not קלאוד: that is how Hebrew says "cloud"
     "ChatGPT": ["ChatGPT", "Chat GPT", "צ'אט ג'יפיטי", "צ׳אט ג׳יפיטי", "צ'ט ג'יפיטי"],
     "Codex": ["Codex", "קודקס"],
     "Anthropic": ["Anthropic", "אנתרופיק"],
@@ -403,77 +408,143 @@ def merge_chunk_words(chunks: Sequence[Sequence[TimedWord]]) -> list[TimedWord]:
     return merged
 
 
+_FFMPEG_EXPLANATIONS = (
+    ("does not contain any stream", "This file has no sound track to transcribe."),
+    ("Unknown encoder", "Your ffmpeg is missing an audio encoder."),
+    ("moov atom not found", "This video file is incomplete or damaged (a recording that was cut off?)."),
+    ("Invalid data found", "This does not look like a video or audio file ffmpeg can read."),
+    ("Permission denied", "ffmpeg was not allowed to read this file. Check the file's permissions."),
+    ("No such file", "ffmpeg could not find the file (was it moved or renamed?)."),
+)
+
+
+_EXTRA_TOOL_DIRS = (
+    "/opt/homebrew/bin",   # Homebrew on Apple Silicon, before the shell is restarted
+    "/usr/local/bin",      # Homebrew on Intel Macs
+    "/opt/local/bin",      # MacPorts
+    "/snap/bin",
+)
+
+
+def _find_tool(name: str) -> str | None:
+    found = shutil.which(name)
+    if found:
+        return found
+    for directory in _EXTRA_TOOL_DIRS:
+        candidate = Path(directory) / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
 def _run(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    resolved = [_find_tool(command[0]) or command[0], *command[1:]]
     try:
         return subprocess.run(
-            command,
+            resolved,
             check=True,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except FileNotFoundError as error:
-        raise SubthisError(f"Required command not found: {command[0]}") from error
+        raise SubthisError(
+            f"Required command not found: {command[0]}. To install it: {_ffmpeg_install_hint()}"
+        ) from error
+    except OSError as error:  # e.g. a broken shortcut or a wrong-architecture binary
+        raise SubthisError(f"{command[0]} could not be started ({error}). Reinstall it: {_ffmpeg_install_hint()}") from error
     except subprocess.CalledProcessError as error:
-        detail = error.stderr.strip().splitlines()
-        message = detail[-1] if detail else "unknown media error"
+        detail = [line for line in error.stderr.strip().splitlines() if line.strip()]
+        for needle, explanation in _FFMPEG_EXPLANATIONS:
+            if any(needle in line for line in detail):
+                raise SubthisError(explanation) from error
+        message = " | ".join(detail[-3:]) if detail else "unknown media error"
         raise SubthisError(f"{command[0]} failed: {message}") from error
 
 
-def probe_duration(path: Path) -> float:
+def _has_audio_stream(path: Path) -> bool:
     result = _run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "json",
-            str(path),
-        ]
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "json", str(path)]
     )
     try:
-        duration = float(json.loads(result.stdout)["format"]["duration"])
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        raise SubthisError("Could not determine the video duration.") from error
+        return bool(json.loads(result.stdout).get("streams"))
+    except (ValueError, AttributeError):
+        return True  # unknown; let extraction decide
+
+
+def probe_duration(path: Path) -> float:
+    """Length of the first audio stream, falling back to the container length."""
+    result = _run(
+        [
+            "ffprobe", "-v", "error",
+            "-select_streams", "a:0",
+            "-show_entries", "stream=duration:format=duration",
+            "-of", "json", str(path),
+        ]
+    )
+    duration = 0.0
+    try:
+        info = json.loads(result.stdout)
+        candidates = [stream.get("duration") for stream in info.get("streams", [])]
+        candidates.append(info.get("format", {}).get("duration"))
+        for candidate in candidates:
+            with contextlib.suppress(TypeError, ValueError):
+                if candidate is not None and float(candidate) > 0:
+                    duration = float(candidate)
+                    break
+    except (ValueError, AttributeError) as error:
+        raise SubthisError("Could not read the length of this file.") from error
     if duration <= 0:
-        raise SubthisError("The video duration is zero.")
+        raise SubthisError(
+            "Could not read the length of this file. Browser recordings sometimes lack it;\n"
+            "re-saving the file through any video editor or converter fixes that."
+        )
     return duration
 
 
+# Opus is smallest; AAC is built into every ffmpeg so it works when libopus is absent.
+_AUDIO_ENCODERS: tuple[tuple[str, list[str]], ...] = (
+    (".ogg", ["-c:a", "libopus", "-b:a", "32k", "-application", "voip"]),
+    (".m4a", ["-c:a", "aac", "-b:a", "48k"]),
+)
+
+
+def _extract_audio(video: Path, offset: float, chunk_duration: float, base: Path) -> Path:
+    last_error: SubthisError | None = None
+    for suffix, encoder in _AUDIO_ENCODERS:
+        output = base.with_suffix(suffix)
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y"]
+        if offset:
+            command.extend(["-ss", f"{offset:.3f}"])
+        command.extend(["-i", str(video), "-t", f"{chunk_duration:.3f}"])
+        command.extend(["-map", "0:a:0", "-vn", "-sn", "-dn", "-ac", "1", "-ar", "16000"])
+        command.extend(encoder)
+        command.append(str(output))
+        try:
+            _run(command)
+            return output
+        except SubthisError as error:
+            last_error = error
+            with contextlib.suppress(FileNotFoundError):
+                output.unlink()
+    assert last_error is not None
+    raise last_error
+
+
 def extract_chunks(video: Path, directory: Path) -> tuple[list[AudioChunk], float]:
+    if not _has_audio_stream(video):
+        raise SubthisError("This file has no sound track, so there is nothing to transcribe.")
     duration = probe_duration(video)
     chunks: list[AudioChunk] = []
     offset = 0.0
     index = 0
     while offset < duration:
         chunk_duration = min(CHUNK_SECONDS + CHUNK_OVERLAP_SECONDS, duration - offset)
-        output = directory / f"chunk-{index:04d}.ogg"
-        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
-        if offset:
-            command.extend(["-ss", f"{offset:.3f}"])
-        command.extend(
-            [
-                "-i",
-                str(video),
-                "-t",
-                f"{chunk_duration:.3f}",
-                "-vn",
-                "-ac",
-                "1",
-                "-ar",
-                "16000",
-                "-c:a",
-                "libopus",
-                "-b:a",
-                "32k",
-                "-application",
-                "voip",
-                str(output),
-            ]
-        )
-        _run(command)
+        if 0 < duration - (offset + CHUNK_SECONDS) < SHORT_TAIL_SECONDS:
+            chunk_duration = duration - offset  # swallow a short tail (often outro music)
+        output = _extract_audio(video, offset, chunk_duration, directory / f"chunk-{index:04d}.ogg")
         if not output.exists() or output.stat().st_size == 0:
             raise SubthisError("FFmpeg produced an empty audio file. The video may have no audio track.")
         if output.stat().st_size > MAX_UPLOAD_BYTES:
@@ -484,6 +555,9 @@ def extract_chunks(video: Path, directory: Path) -> tuple[list[AudioChunk], floa
         offset += CHUNK_SECONDS
         index += 1
     return chunks, duration
+
+
+_MIME_TYPES = {".ogg": "audio/ogg", ".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav"}
 
 
 def _multipart(fields: Sequence[tuple[str, str]], file_path: Path) -> tuple[bytes, str]:
@@ -498,7 +572,7 @@ def _multipart(fields: Sequence[tuple[str, str]], file_path: Path) -> tuple[byte
     body.extend(
         (
             f'Content-Disposition: form-data; name="file"; filename="{file_path.name}"\r\n'
-            "Content-Type: audio/ogg\r\n\r\n"
+            f"Content-Type: {_MIME_TYPES.get(file_path.suffix.lower(), 'application/octet-stream')}\r\n\r\n"
         ).encode()
     )
     body.extend(file_path.read_bytes())
@@ -510,9 +584,15 @@ def _multipart(fields: Sequence[tuple[str, str]], file_path: Path) -> tuple[byte
 def _api_error_message(payload: bytes, status: int | None = None) -> str:
     text = payload.decode("utf-8", errors="replace")
     if status in (401, 403) or "invalid_api_key" in text:
+        if _key_comes_from_environment():
+            return (
+                "OpenAI does not accept the key in your OPENAI_API_KEY environment variable, "
+                "which overrides the key subthis saved. Remove or fix that variable "
+                "(it is usually set in your shell profile) and run again."
+            )
         return (
             "OpenAI no longer accepts your saved key (it may have been revoked). "
-            f"Run 'subthis setup' to enter a new one from {API_KEYS_URL}"
+            f"Run 'subthis config key' to enter a new one from {API_KEYS_URL}"
         )
     if "insufficient_quota" in text:
         return (
@@ -520,16 +600,58 @@ def _api_error_message(payload: bytes, status: int | None = None) -> str:
             f"Add credit at {BILLING_URL} and run subthis again."
         )
     prefix = f"OpenAI API error{f' {status}' if status else ''}"
-    try:
+    message = None
+    with contextlib.suppress(ValueError, AttributeError):
         message = json.loads(text).get("error", {}).get("message")
-        if isinstance(message, str) and message.strip():
-            result = f"{prefix}: {message.strip()}"
-            if status == 429:
-                result += " (OpenAI is asking us to slow down. Wait a minute and try again.)"
-            return result
-    except (json.JSONDecodeError, AttributeError):
-        pass
-    return prefix
+    result = f"{prefix}: {message.strip()}" if isinstance(message, str) and message.strip() else prefix
+    if status == 429:
+        result += " (OpenAI is asking us to slow down. Wait a minute and try again.)"
+    elif status == 407:
+        result = "A proxy on this network wants a login before letting subthis reach OpenAI. Ask your IT person."
+    elif status is not None and status >= 500:
+        result += " (OpenAI had a temporary problem. Running the same command again usually works.)"
+    return result
+
+
+_RETRYABLE_STATUSES = (408, 429, 500, 502, 503, 504, 520, 522, 524)
+
+
+def _network_reason(error: BaseException) -> str:
+    text = str(getattr(error, "reason", None) or error)
+    if "CERTIFICATE_VERIFY_FAILED" in text:
+        return (
+            "a secure connection could not be verified. Something on this network or computer\n"
+            "(antivirus, a corporate proxy, an old system) intercepts secure traffic; ask your IT\n"
+            "person, or try another network."
+        )
+    if "Name or service not known" in text or "nodename nor servname" in text or "getaddrinfo" in text:
+        return "no internet connection (the OpenAI address could not be looked up)."
+    if "timed out" in text.lower():
+        return "the connection timed out. Check your internet connection and try again."
+    return text
+
+
+def _post_with_retry(request: urllib.request.Request, timeout: float, attempts: int = 3) -> bytes:
+    """A blip at hour two of a three-hour job must not throw the job away."""
+    delay = 2.0
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            payload = error.read()
+            retryable = error.code in _RETRYABLE_STATUSES and b"insufficient_quota" not in payload
+            if not retryable or attempt == attempts:
+                raise SubthisError(_api_error_message(payload, error.code)) from error
+            problem = f"OpenAI answered with error {error.code}"
+        except (OSError, http.client.HTTPException) as error:  # URLError, timeouts, resets, short reads
+            if attempt == attempts:
+                raise SubthisError(f"Could not reach the OpenAI API: {_network_reason(error)}") from error
+            problem = "the connection to OpenAI dropped"
+        print(f"{problem}; trying again in {delay:.0f}s...", file=sys.stderr)
+        time.sleep(delay)
+        delay *= 2
+    raise SubthisError("Could not reach the OpenAI API.")
 
 
 def request_transcription(
@@ -544,18 +666,11 @@ def request_transcription(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": content_type,
-            "User-Agent": "subthis/1.0",
+            "User-Agent": f"subthis/{__version__}",
         },
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=1800) as response:
-            payload = response.read()
-    except urllib.error.HTTPError as error:
-        raise SubthisError(_api_error_message(error.read(), error.code)) from error
-    except urllib.error.URLError as error:
-        reason = getattr(error, "reason", "connection failed")
-        raise SubthisError(f"Could not reach the OpenAI API: {reason}") from error
+    payload = _post_with_retry(request, timeout=1800)
     try:
         decoded = json.loads(payload)
     except json.JSONDecodeError as error:
@@ -582,7 +697,9 @@ def transcribe_accurate(chunk: AudioChunk, config: Config) -> str:
     if not isinstance(text, str):
         raise SubthisError("The accurate transcription response did not contain text.")
     canonical = canonicalize_terms(text.strip(), config.aliases)
-    return strip_caption_punctuation(canonical)
+    # Punctuation stays attached here; alignment normalizes tokens itself and
+    # make_cues strips or keeps it according to the caption settings.
+    return " ".join(canonical.split())
 
 
 def _non_speech_spans(segments: object) -> list[tuple[float, float]]:
@@ -629,12 +746,17 @@ def transcribe_timing(chunk: AudioChunk, config: Config) -> list[TimedWord]:
         ("response_format", "verbose_json"),
         ("timestamp_granularities[]", "word"),
         ("timestamp_granularities[]", "segment"),
-        ("language", config.languages[0] if config.languages else "he"),
     ]
+    if len(config.languages) == 1:
+        # Forcing Hebrew onto an English-only video produces junk tokens;
+        # with several languages configured, let whisper detect.
+        fields.append(("language", config.languages[0]))
     if timing_prompt:
         fields.append(("prompt", timing_prompt))
     response = request_transcription(config.api_key, chunk.path, fields)
     raw_words = response.get("words")
+    if raw_words is None and not str(response.get("text", "")).strip():
+        return []  # silent chunk: whisper omits the words list entirely
     if not isinstance(raw_words, list):
         raise SubthisError("The timing transcription response did not contain word timestamps.")
     words: list[TimedWord] = []
@@ -654,7 +776,7 @@ def _load_api_key() -> str:
     if environment_key:
         return environment_key
     if ENV_FILE.is_file():
-        with ENV_FILE.open(encoding="utf-8") as handle:
+        with ENV_FILE.open(encoding="utf-8-sig") as handle:
             for line in handle:
                 match = re.match(r"\s*OPENAI_API_KEY\s*=\s*(.*?)\s*$", line)
                 if match:
@@ -662,8 +784,12 @@ def _load_api_key() -> str:
                     if value:
                         return value
     raise SubthisError(
-        f"No OPENAI_API_KEY found in the environment or {ENV_FILE}. Run: subthis setup"
+        f"No OpenAI key is saved yet ({ENV_FILE} does not have one). Run: subthis setup"
     )
+
+
+def _key_comes_from_environment() -> bool:
+    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
 
 
 TERMS_TEMPLATE = """\
@@ -678,14 +804,29 @@ TERMS_TEMPLATE = """\
 
 def _ffmpeg_install_hint() -> str:
     if sys.platform == "win32":
-        return "winget install ffmpeg   (or: choco install ffmpeg)"
+        return (
+            "winget install --id Gyan.FFmpeg -e\n"
+            "    then close this window and open a new PowerShell window (the new\n"
+            "    program is only visible to windows opened after the install)"
+        )
     if sys.platform == "darwin":
-        return "brew install ffmpeg"
-    return "install it with your package manager, e.g. sudo pacman -S ffmpeg / sudo apt install ffmpeg"
+        return (
+            "brew install ffmpeg   then open a new Terminal window\n"
+            "    (no Homebrew yet? install it first with the command on https://brew.sh)"
+        )
+    return (
+        "sudo apt install ffmpeg  /  sudo dnf install ffmpeg  /  sudo pacman -S ffmpeg\n"
+        "    (pick the one for your distribution), then open a new terminal"
+    )
 
 
 _COLOR = False
 _ANSI = {"green": "32", "red": "31", "yellow": "33", "cyan": "36", "bold": "1", "dim": "2"}
+# Pretty symbols, with plain-ASCII stand-ins for consoles that cannot show them
+# (a Windows console on code page 1252 or 862, a LANG=C Linux session).
+_SYMBOLS_UTF8 = {"ok": "✓", "bad": "✗", "pointer": "❯", "arrows": "↑/↓", "dot": "·", "box": "╭─╮│╰╯"}
+_SYMBOLS_ASCII = {"ok": "OK", "bad": "X", "pointer": ">", "arrows": "up/down", "dot": "-", "box": "+-+|++"}
+_SYM = dict(_SYMBOLS_UTF8)
 
 
 def _paint(text: str, *names: str) -> str:
@@ -696,11 +837,11 @@ def _paint(text: str, *names: str) -> str:
 
 
 def _say_ok(text: str) -> None:
-    print(_paint("  ✓ ", "green", "bold") + text)
+    print(_paint(f"  {_SYM['ok']} ", "green", "bold") + text)
 
 
 def _say_bad(text: str) -> None:
-    print(_paint("  ✗ ", "red", "bold") + text)
+    print(_paint(f"  {_SYM['bad']} ", "red", "bold") + text)
 
 
 def _say_note(text: str) -> None:
@@ -708,8 +849,22 @@ def _say_note(text: str) -> None:
 
 
 def _banner(title: str) -> None:
-    line = "─" * (len(title) + 2)
-    print(_paint(f"╭{line}╮\n│ {title} │\n╰{line}╯", "cyan"))
+    tl, hz, tr, vt, bl, br = _SYM["box"]
+    line = hz * (len(title) + 2)
+    print(_paint(f"{tl}{line}{tr}\n{vt} {title} {vt}\n{bl}{line}{br}", "cyan"))
+
+
+def _stdout_is_utf8() -> bool:
+    encoding = (getattr(sys.stdout, "encoding", None) or "").lower().replace("-", "").replace("_", "")
+    return encoding in ("utf8", "utf8sig")
+
+
+def _is_interactive() -> bool:
+    """Both ends must be a terminal: with stdout piped, prompts would vanish into the pipe."""
+    return all(
+        stream is not None and hasattr(stream, "isatty") and stream.isatty()
+        for stream in (sys.stdin, sys.stdout)
+    )
 
 
 def _flush_pending_input() -> None:
@@ -742,6 +897,16 @@ def _ask(prompt: str) -> str:
 
 def _open_page(url: str, interactive: bool) -> None:
     print("    " + _paint(url, "cyan", "bold"))
+    headless_linux = (
+        sys.platform not in ("win32", "darwin")
+        and not os.environ.get("DISPLAY")
+        and not os.environ.get("WAYLAND_DISPLAY")
+    )
+    if interactive and headless_linux:
+        # webbrowser would fall back to a text browser inside this terminal
+        # (w3m/lynx) and take over the screen; the printed address is better.
+        print(_paint("    (copy that address into a browser on any device)", "dim"))
+        return
     if interactive:
         opened = False
         with contextlib.suppress(Exception):
@@ -760,8 +925,47 @@ def _init_color() -> None:
         and hasattr(sys.stdout, "isatty")
         and sys.stdout.isatty()
     )
-    if _COLOR and sys.platform == "win32":
-        os.system("")  # flips older Windows consoles into ANSI color mode
+    global _VT_OK
+    if sys.platform == "win32":
+        _VT_OK = _enable_windows_vt()
+        if not _VT_OK:
+            _COLOR = False
+    # The legacy Windows console (PowerShell outside Windows Terminal) has no
+    # font fallback, so ✓ ✗ ❯ render as boxes there.
+    legacy_windows_console = sys.platform == "win32" and not os.environ.get("WT_SESSION")
+    _SYM.clear()
+    _SYM.update(_SYMBOLS_ASCII if legacy_windows_console or not _stdout_is_utf8() else _SYMBOLS_UTF8)
+
+
+_VT_OK = True
+
+
+def _enable_windows_vt() -> bool:
+    """Turn on ANSI escape processing in the Windows console; say whether it worked."""
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.GetStdHandle(-11)
+        mode = ctypes.c_uint()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except Exception:
+        return False
+
+
+def _normalize_pasted_key(text: str) -> str:
+    """Accept a key however it was copied: with quotes, a line of an .env
+    file, an 'export', a 'Bearer' prefix, or trailing junk lines."""
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    key = lines[0] if lines else ""
+    for _ in range(3):
+        key = key.strip().strip("\"'")
+        for prefix in ("export ", "OPENAI_API_KEY=", "OPENAI_API_KEY =", "Bearer ", "bearer "):
+            if key.startswith(prefix):
+                key = key[len(prefix):]
+    return key.strip().strip("\"'")
 
 
 def _version_tuple(text: str) -> tuple[int, ...]:
@@ -781,10 +985,15 @@ def _latest_pypi_version() -> str | None:
 
 
 def _update_command() -> str:
-    executable = str(Path(sys.executable).resolve()).lower()
-    if "pipx" in executable:
+    """Pick the updater that actually installed this copy."""
+    prefix = str(Path(sys.prefix).resolve()).lower()
+    if "pipx" in prefix and shutil.which("pipx"):
         return "pipx upgrade subthis"
-    return "uv tool upgrade subthis"
+    if shutil.which("uv"):
+        return "uv tool upgrade subthis"
+    if shutil.which("pipx"):
+        return "pipx upgrade subthis"
+    return f'"{sys.executable}" -m pip install --upgrade subthis'
 
 
 def _maybe_offer_update(arguments: Sequence[str]) -> None:
@@ -794,8 +1003,16 @@ def _maybe_offer_update(arguments: Sequence[str]) -> None:
         return
     if sys.stdout is None or not sys.stdout.isatty():
         return
+    settings = _load_settings()
+    last_check = settings.get("last_update_check")
+    if isinstance(last_check, (int, float)) and time.time() - last_check < 24 * 3600:
+        return  # once a day is plenty
     print(_paint("checking for a newer version...", "dim"), flush=True)
     latest = _latest_pypi_version()
+    if latest:
+        settings["last_update_check"] = time.time()
+        with contextlib.suppress(OSError):
+            _save_settings(settings)
     if not latest or _version_tuple(latest) <= _version_tuple(__version__):
         return
     print(
@@ -807,34 +1024,75 @@ def _maybe_offer_update(arguments: Sequence[str]) -> None:
         print("No problem. When you want it later, copy and run this command:")
         print("    " + _paint(_update_command(), "bold") + "\n")
         return
+    command = _update_command()
+    if sys.platform == "win32":
+        # Windows will not let the updater replace subthis.exe while it runs.
+        print(
+            "On Windows the update has to run while subthis is closed. Copy this command,\n"
+            "close this window, open a new PowerShell window, and run it there:\n"
+            "    " + _paint(command, "bold") + "\n"
+            "Continuing on the current version for now.\n"
+        )
+        return
     print("Updating...")
-    result = subprocess.run(
-        _update_command().split(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            shlex.split(command, posix=sys.platform != "win32"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as error:
+        _say_note(f"Could not start the updater ({error}). Run this yourself later:\n    {command}")
+        return
     fresh = shutil.which("subthis")
     if result.returncode != 0 or fresh is None:
-        _say_note("The update did not finish, so this run continues on the current version.")
+        tail = " | ".join(line for line in result.stdout.strip().splitlines()[-3:] if line.strip())
+        _say_note(
+            "The update did not finish, so this run continues on the current version.\n"
+            f"    Updater said: {tail or 'nothing'}\n"
+            f"    To try by hand (close other subthis windows first on Windows): {command}"
+        )
         return
     _say_ok("Updated. Continuing right where you were...\n")
     environment = {**os.environ, "SUBTHIS_SKIP_UPDATE": "1"}
+    # Let the child own Ctrl+C so the user does not see "cancelled" twice.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     completed = subprocess.run([fresh, *arguments], env=environment)
     raise SystemExit(completed.returncode)
 
 
 def _load_settings() -> dict:
     try:
-        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8-sig"))
         return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return {}
 
 
+def _write_atomically(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(content, encoding="utf-8")
+        for attempt in range(5):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                # Windows: antivirus or a cloud-sync client may hold the file
+                # for a moment right after it was written.
+                if attempt == 4:
+                    raise
+                time.sleep(0.3 * (attempt + 1))
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            temporary.unlink()
+
+
 def _save_settings(settings: dict) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_FILE.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    _write_atomically(SETTINGS_FILE, json.dumps(settings, indent=2) + "\n")
 
 
 def _reveal_in_file_manager(path: Path) -> None:
@@ -847,24 +1105,31 @@ def _reveal_in_file_manager(path: Path) -> None:
     try:
         target = str(path.resolve())
         if sys.platform == "win32":
-            subprocess.run(["explorer", "/select,", os.path.normpath(target)], timeout=10)
+            if "," in target:
+                # Explorer splits its own command line on commas.
+                os.startfile(str(path.parent))  # type: ignore[attr-defined]
+            else:
+                subprocess.run(["explorer", "/select,", os.path.normpath(target)], timeout=10)
         elif sys.platform == "darwin":
             subprocess.run(["open", "-R", target], timeout=10)
         else:
             uri = "file://" + urllib.parse.quote(target)
-            result = subprocess.run(
-                [
-                    "gdbus", "call", "--session",
-                    "--dest", "org.freedesktop.FileManager1",
-                    "--object-path", "/org/freedesktop/FileManager1",
-                    "--method", "org.freedesktop.FileManager1.ShowItems",
-                    f"['{uri}']", "",
-                ],
-                capture_output=True,
-                timeout=10,
-            )
+            shown = False
+            with contextlib.suppress(Exception):  # gdbus missing or no session bus
+                result = subprocess.run(
+                    [
+                        "gdbus", "call", "--session",
+                        "--dest", "org.freedesktop.FileManager1",
+                        "--object-path", "/org/freedesktop/FileManager1",
+                        "--method", "org.freedesktop.FileManager1.ShowItems",
+                        f"['{uri}']", "",
+                    ],
+                    capture_output=True,
+                    timeout=10,
+                )
+                shown = result.returncode == 0
             has_display = os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
-            if result.returncode != 0 and has_display and shutil.which("xdg-open"):
+            if not shown and has_display and shutil.which("xdg-open"):
                 subprocess.run(
                     ["xdg-open", str(path.parent)], capture_output=True, timeout=10
                 )
@@ -873,8 +1138,14 @@ def _reveal_in_file_manager(path: Path) -> None:
 
 
 def _parse_term_string(text: str) -> list[str]:
+    # Notes/TextEdit/Word swap in curly quotes; treat them as the straight ones.
+    text = text.translate(str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"'}))
+    # An apostrophe inside a word (צ'אט, ג'יפיטי, don't) is part of the word,
+    # not a quote that groups terms; only quotes at a word's edge group.
+    placeholder = "\x00"
+    text = re.sub(r"(?<=\S)'(?=\S)", placeholder, text)
     try:
-        return [term for term in shlex.split(text) if term.strip()]
+        return [term.replace(placeholder, "'") for term in shlex.split(text) if term.strip()]
     except ValueError as error:
         raise SubthisError(
             f"Could not read the terms ({error}). Check for an unclosed quote."
@@ -892,11 +1163,14 @@ def _classify_key(api_key: str) -> tuple[str, str]:
         with urllib.request.urlopen(request, timeout=30):
             pass
     except urllib.error.HTTPError as error:
-        if error.code in (401, 403):
+        body = error.read().decode("utf-8", errors="replace")
+        if error.code == 401 or (error.code == 403 and "invalid_api_key" in body):
             return "invalid", ""
+        if error.code == 403:
+            return "ok", ""  # a restricted key without model-read permission is still a key
         return "unreachable", f"HTTP {error.code}"
-    except urllib.error.URLError as error:
-        return "unreachable", str(getattr(error, "reason", "connection failed"))
+    except OSError as error:
+        return "unreachable", _network_reason(error)
 
     # The key is real. Now spend a fraction of a cent on the smallest possible
     # request, because only a real request reveals an account with no credit.
@@ -939,7 +1213,7 @@ def _prompt_for_working_key(existing_key: str, interactive: bool) -> str:
             )
         else:
             entered = _ask("\nPaste your OpenAI key here and press Enter: ")
-        api_key = (entered or existing_key).strip().strip("\"'")
+        api_key = _normalize_pasted_key(entered) if entered else existing_key
         if not api_key:
             _say_bad(f"Nothing was entered. Your key is waiting at {API_KEYS_URL}")
             continue
@@ -983,11 +1257,15 @@ def _prompt_for_working_key(existing_key: str, interactive: bool) -> str:
 
 def _write_env_file(api_key: str) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(
-        ENV_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
-    )
+    content = f"OPENAI_API_KEY={api_key}\n"
+    if sys.platform == "win32":
+        # %APPDATA% is already private to the user; POSIX modes mean nothing here,
+        # and a raw fd would be opened in text mode and double the line endings.
+        ENV_FILE.write_text(content, encoding="utf-8")
+        return
+    descriptor = os.open(ENV_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(f"OPENAI_API_KEY={api_key}\n")
+        handle.write(content)
     with contextlib.suppress(OSError):
         os.chmod(ENV_FILE, 0o600)
 
@@ -999,10 +1277,16 @@ def _caption_settings() -> dict[str, object]:
         for name, value in saved.items():
             if name in merged:
                 merged[name] = value
-    with contextlib.suppress(TypeError, ValueError):
+    try:
         merged["words"] = min(3, max(1, int(merged["words"])))  # type: ignore[arg-type]
-        for name in ("pause", "hang", "min"):
-            merged[name] = float(merged[name])  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        merged["words"] = CAPTION_DEFAULTS["words"]
+    for name, floor in (("pause", 0.05), ("hang", 0.0), ("min", 0.0)):
+        try:
+            number = float(str(merged[name]).replace(",", "."))
+            merged[name] = min(10.0, max(floor, number))
+        except (TypeError, ValueError):
+            merged[name] = CAPTION_DEFAULTS[name]
     if merged["punctuation"] not in ("keep", "remove"):
         merged["punctuation"] = CAPTION_DEFAULTS["punctuation"]
     if merged["silence"] not in ("hold", "cut"):
@@ -1061,7 +1345,7 @@ def _config_captions(rest: Sequence[str]) -> int:
             raise SubthisError("words must be 1, 2 or 3.")
     elif name in ("pause", "hang", "min"):
         try:
-            value = float(raw)
+            value = float(raw.replace(",", "."))  # 0,5 is how half of Europe types it
         except ValueError:
             raise SubthisError(f"{name} must be a number of seconds, like 0.5") from None
         if not 0 <= value <= 10 or (name == "pause" and value <= 0):
@@ -1087,7 +1371,7 @@ def _config_captions(rest: Sequence[str]) -> int:
 
 
 def run_config(rest: Sequence[str]) -> int:
-    interactive = sys.stdin is not None and sys.stdin.isatty()
+    interactive = _is_interactive()
     if not rest or rest[0] not in ("key", "terms", "open", "captions"):
         raise SubthisError(
             "Usage:\n"
@@ -1129,7 +1413,7 @@ def run_config(rest: Sequence[str]) -> int:
 
     text = " ".join(rest[1:]).strip()
     if not text:
-        if interactive:
+        if interactive and _VT_OK:
             return _terms_editor()
         print(
             "Type the terms to add, separated by spaces. Wrap a multi-word term\n"
@@ -1171,24 +1455,52 @@ def _read_key() -> str:
 
     descriptor = sys.stdin.fileno()
     saved = termios.tcgetattr(descriptor)
+
+    def read_byte(wait: float | None) -> bytes:
+        # Straight from the fd: the text wrapper would slurp "ESC [ A" into
+        # its own buffer and make an arrow key look like a bare Escape.
+        if wait is not None and not select.select([descriptor], [], [], wait)[0]:
+            return b""
+        return os.read(descriptor, 1)
+
     try:
-        tty.setcbreak(descriptor)
-        char = sys.stdin.read(1)
-        if char == "\x1b":
-            if select.select([sys.stdin], [], [], 0.05)[0]:
-                if sys.stdin.read(1) == "[" and select.select([sys.stdin], [], [], 0.05)[0]:
-                    return {"A": "up", "B": "down"}.get(sys.stdin.read(1), "")
+        tty.setcbreak(descriptor, termios.TCSANOW)
+        first = read_byte(None)
+        if first == b"\x1b":
+            second = read_byte(0.05)
+            if second in (b"[", b"O"):
+                third = read_byte(0.05)
+                return {b"A": "up", b"B": "down"}.get(third, "")
             return "esc"
-        if char in ("\r", "\n"):
+        if first in (b"\r", b"\n"):
             return "enter"
-        return char
+        if first == b"\x03":
+            raise KeyboardInterrupt
+        # Collect the rest of a multi-byte UTF-8 character (e.g. a Hebrew key).
+        needed = 0
+        lead = first[0] if first else 0
+        if lead >= 0xF0:
+            needed = 3
+        elif lead >= 0xE0:
+            needed = 2
+        elif lead >= 0xC0:
+            needed = 1
+        for _ in range(needed):
+            first += read_byte(0.05)
+        return first.decode("utf-8", errors="ignore")
     finally:
         termios.tcsetattr(descriptor, termios.TCSADRAIN, saved)
 
 
 def _term_file_lines() -> list[str]:
     if TERMS_FILE.is_file():
-        return TERMS_FILE.read_text(encoding="utf-8").splitlines()
+        text = TERMS_FILE.read_text(encoding="utf-8-sig", errors="replace")
+        if text.lstrip().startswith("{\\rtf"):
+            raise SubthisError(
+                f"{TERMS_FILE} was saved as rich text (RTF). Save it as plain text instead\n"
+                "(in TextEdit: Format > Make Plain Text)."
+            )
+        return text.splitlines()
     return TERMS_TEMPLATE.splitlines()
 
 
@@ -1219,7 +1531,7 @@ def _draw_terms_screen(
         output.append("  (no terms saved yet; press a to add your first one)\n")
     for position in range(top, min(top + body_rows, len(entries))):
         line_index = entries[position]
-        pointer = _paint("❯ ", "cyan", "bold") if position == cursor else "  "
+        pointer = _paint(f"{_SYM['pointer']} ", "cyan", "bold") if position == cursor else "  "
         box = _paint("[x] ", "green") if line_index in selected else "[ ] "
         text = lines[line_index].strip()[: columns - 8]
         output.append(pointer + box + text + "\n")
@@ -1228,7 +1540,11 @@ def _draw_terms_screen(
         output.append(_paint(message[: columns - 1], "yellow") + "\n")
     else:
         output.append("\n")
-    guide = "↑/↓ move · space select · m mark/unmark all · a add · r remove · q save and quit"
+    dot = _SYM["dot"]
+    guide = (
+        f"{_SYM['arrows']} move {dot} space select {dot} m mark/unmark all "
+        f"{dot} a add {dot} r remove {dot} q save and quit"
+    )
     output.append(_paint(guide[: columns - 1], "dim"))
     sys.stdout.write("".join(output))
     sys.stdout.flush()
@@ -1246,8 +1562,18 @@ def _terms_editor() -> int:
             cursor = max(0, min(cursor, len(entries) - 1))
             _draw_terms_screen(lines, entries, cursor, selected, message)
             message = ""
-            key = _read_key()
-            if key in ("q", "esc"):
+            try:
+                key = _read_key()
+            except KeyboardInterrupt:
+                message = "Press q to save and quit (Ctrl+C would throw away your changes; press it again to do that)."
+                try:
+                    _draw_terms_screen(lines, entries, cursor, selected, message)
+                    key = _read_key()
+                except KeyboardInterrupt:
+                    raise
+            # A Hebrew keyboard layout sends these for the same physical keys.
+            key = {"/": "q", "ש": "a", "ר": "r", "צ": "m", "ח": "j", "ל": "k"}.get(key, key)
+            if key == "q":
                 break
             if key in ("up", "k") and entries:
                 cursor = max(0, cursor - 1)
@@ -1306,6 +1632,32 @@ def _terms_editor() -> int:
     return 0
 
 
+def _write_srt_somewhere(output: Path, srt_text: str) -> Path:
+    """Write the subtitles, never losing them: fall back to a sibling name,
+    then to the Desktop or home folder, and say where they went."""
+    candidates = [output]
+    stem, suffix = output.stem, output.suffix or ".srt"
+    candidates.append(output.with_name(f"{stem}-subthis{suffix}"))
+    for folder in (Path.home() / "Desktop", Path.home(), Path.cwd()):
+        candidates.append(folder / f"{stem}{suffix}")
+    last_error: OSError | None = None
+    for index, candidate in enumerate(candidates):
+        try:
+            # SRT with a BOM: Windows Media Player and many TVs otherwise guess
+            # the encoding of Hebrew text wrong; VLC/mpv/YouTube accept both.
+            _write_atomically(candidate, "﻿" + srt_text)
+        except OSError as error:
+            last_error = error
+            continue
+        if index:
+            _say_note(f"Could not write to {output.parent}, so the file went elsewhere:")
+        return candidate
+    raise SubthisError(
+        f"The subtitles were made but could not be saved anywhere ({last_error}).\n"
+        "Free up disk space or check folder permissions, then run again."
+    )
+
+
 def _example_command() -> str:
     if sys.platform == "win32":
         return r"subthis C:\Users\you\Videos\lesson.mp4"
@@ -1315,7 +1667,7 @@ def _example_command() -> str:
 
 
 def run_setup() -> int:
-    interactive = sys.stdin is not None and sys.stdin.isatty()
+    interactive = _is_interactive()
     _banner(f"Welcome to subthis  ·  v{__version__}")
     print(
         "\nsubthis turns a video into subtitles. This one-time setup takes about\n"
@@ -1323,7 +1675,12 @@ def run_setup() -> int:
         f"settings folder: {CONFIG_DIR}\n"
     )
 
-    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+    if _key_comes_from_environment():
+        _say_note(
+            "An OPENAI_API_KEY variable is set in this terminal's environment. It will win\n"
+            "    over whatever you save here; if it is stale, remove it from your shell profile."
+        )
+    if _find_tool("ffmpeg") and _find_tool("ffprobe"):
         _say_ok("ffmpeg is installed (subthis uses it to read the sound from your videos)")
     else:
         _say_note("A helper program called ffmpeg is missing. It reads the sound from videos.")
@@ -1390,7 +1747,7 @@ def load_terms(path: Path, additions: Iterable[str] = ()) -> tuple[dict[str, lis
     aliases = {canonical: list(spellings) for canonical, spellings in DEFAULT_ALIASES.items()}
     keywords = list(DEFAULT_KEYWORDS)
     if path.is_file():
-        with path.open(encoding="utf-8") as handle:
+        with path.open(encoding="utf-8-sig", errors="replace") as handle:
             lines = list(handle)
     else:
         lines = []
@@ -1411,29 +1768,77 @@ def load_terms(path: Path, additions: Iterable[str] = ()) -> tuple[dict[str, lis
     return aliases, keywords
 
 
+def _wait_with_heartbeat(futures: Sequence[Future], label: str) -> None:
+    started = time.monotonic()
+    last_note = started
+    while True:
+        # Short waits keep Ctrl+C responsive on Windows, where a long lock
+        # wait cannot be interrupted.
+        done, pending = wait(futures, timeout=0.5)
+        if not pending:
+            return
+        now = time.monotonic()
+        if now - last_note >= 30:
+            last_note = now
+            elapsed = int(now - started)
+            print(f"  still working on {label} ({elapsed // 60}m{elapsed % 60:02d}s so far)...", file=sys.stderr)
+
+
+def _trim_overlap(words: list[TimedWord], chunk: AudioChunk, previous_end: float | None) -> list[TimedWord]:
+    """Keep each word from exactly one chunk: the boundary sits mid-overlap."""
+    if previous_end is None:
+        return words
+    boundary = previous_end - CHUNK_OVERLAP_SECONDS / 2
+    return [word for word in words if word.start >= boundary]
+
+
 def transcribe_video(video: Path, config: Config) -> tuple[list[Cue], float]:
-    with tempfile.TemporaryDirectory(prefix="subthis-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="subthis-", ignore_cleanup_errors=True) as temporary:
         chunks, duration = extract_chunks(video, Path(temporary))
+        if len(chunks) > 1:
+            print(
+                f"Long video: {len(chunks)} parts of up to {CHUNK_SECONDS // 60} minutes each. "
+                "Each part takes roughly a minute per 10 minutes of speech.",
+                file=sys.stderr,
+            )
         all_words: list[list[TimedWord]] = []
+        previous_end: float | None = None
         for index, chunk in enumerate(chunks, start=1):
-            print(f"Transcribing chunk {index}/{len(chunks)}...", file=sys.stderr)
-            with ThreadPoolExecutor(max_workers=2) as pool:
+            label = f"part {index} of {len(chunks)}" if len(chunks) > 1 else "your video"
+            print(f"Transcribing {label}...", file=sys.stderr)
+            pool = ThreadPoolExecutor(max_workers=2)
+            try:
                 accurate_future = pool.submit(transcribe_accurate, chunk, config)
                 timing_future = pool.submit(transcribe_timing, chunk, config)
+                _wait_with_heartbeat([accurate_future, timing_future], label)
                 accurate_text = accurate_future.result()
                 timing_words = timing_future.result()
+            except KeyboardInterrupt:
+                # Don't sit through a minutes-long upload after Ctrl+C.
+                pool.shutdown(wait=False, cancel_futures=True)
+                raise
+            finally:
+                pool.shutdown(wait=False)
+            chunk_end = chunk.offset + chunk.duration
             if not accurate_text and not timing_words:
+                previous_end = chunk_end
                 continue
             if not accurate_text:
-                raise SubthisError("The accurate transcription was empty while speech timing was detected.")
-            timing_words = canonicalize_timed_words(timing_words, config.aliases)
-            aligned = align_accurate_words(accurate_text, timing_words)
-            all_words.append(
-                [
-                    TimedWord(word.text, word.start + chunk.offset, word.end + chunk.offset)
-                    for word in aligned
-                ]
-            )
+                # The accurate model heard nothing but whisper timed something
+                # (music, mumbling): keep whisper's words rather than fail.
+                aligned = list(timing_words)
+            elif not timing_words:
+                # The opposite: real words with no timing; spread them evenly.
+                aligned = _distribute_words(accurate_text.split(), 0.0, chunk.duration)
+            else:
+                timing_words = canonicalize_timed_words(timing_words, config.aliases)
+                aligned = align_accurate_words(accurate_text, timing_words)
+            shifted = [
+                TimedWord(word.text, word.start + chunk.offset, word.end + chunk.offset)
+                for word in aligned
+            ]
+            all_words.append(_trim_overlap(shifted, chunk, previous_end))
+            previous_end = chunk_end
         merged = merge_chunk_words(all_words)
         cues = make_cues(
             merged,
@@ -1541,6 +1946,8 @@ def build_parser() -> argparse.ArgumentParser:
 def run(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     _init_color()
+    if arguments and arguments[0].lower() in ("help", "setup", "config", "docs"):
+        arguments[0] = arguments[0].lower()  # Setup / SETUP are the same command
     if not arguments or arguments[0] == "help":
         build_parser().print_help()
         return 0
@@ -1557,24 +1964,80 @@ def run(argv: Sequence[str] | None = None) -> int:
         _open_page(DOCS_URL, sys.stdin is not None and sys.stdin.isatty())
         return 0
     args = build_parser().parse_args(arguments)
-    video = args.video.expanduser().resolve()
+    if os.environ.get("SUDO_USER") and sys.platform != "win32":
+        raise SubthisError(
+            "Please run subthis without sudo. With sudo it would save settings and files\n"
+            "as the wrong user, and lose your saved key on the next normal run."
+        )
+    raw_input_path = str(args.video)
+    # argparse already turned the text into a Path, which collapses "//",
+    # so look for "scheme:/" (two or more letters, so C:/ stays a drive).
+    if re.match(r"^[a-z][a-z0-9+.-]+:/", raw_input_path, re.IGNORECASE):
+        raise SubthisError(
+            "subthis works on video files saved on this computer, not on links.\n"
+            "Download the video first, then run subthis on the downloaded file."
+        )
+    given = args.video.expanduser()
+    if given.is_dir():
+        raise SubthisError(f"That is a folder, not a file: {given}\nDrag the video file itself.")
+    video = given.absolute()
     if not video.is_file():
-        raise SubthisError(f"Input file not found: {video}")
-    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
-        raise SubthisError("subthis requires both ffmpeg and ffprobe.")
-    output = (args.output or video.with_suffix(".srt")).expanduser().resolve()
-    if output == video:
+        hint = ""
+        if sys.platform == "win32" and len(str(video)) > 240:
+            hint = "\nThe path is very long; Windows may refuse it. Move the video to a shorter folder."
+        raise SubthisError(f"Input file not found: {video}{hint}")
+    if sys.platform == "win32":
+        attributes = getattr(os.stat(video), "st_file_attributes", 0)
+        if attributes & 0x400000:  # FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+            raise SubthisError(
+                "This video is stored online only (OneDrive). Right-click it in Explorer,\n"
+                "choose 'Always keep on this device', wait for the download, then run again."
+            )
+    if not _find_tool("ffmpeg") or not _find_tool("ffprobe"):
+        raise SubthisError(
+            "subthis needs ffmpeg and ffprobe to read the sound from your video.\n"
+            f"To install: {_ffmpeg_install_hint()}"
+        )
+    if args.output is not None:
+        output = args.output.expanduser().absolute()
+        if output.is_dir():
+            output = output / video.with_suffix(".srt").name
+    else:
+        output = video.with_suffix(".srt")
+    if output.resolve() == video.resolve():
         raise SubthisError("The output path must differ from the input path.")
     if output.exists() and not args.force:
         raise SubthisError(f"Output already exists: {output}. Use --force to replace it.")
+    # Prove the destination is writable before spending money on the API.
+    output.parent.mkdir(parents=True, exist_ok=True)
+    probe_file = output.with_name(f".{output.name}.subthis-{os.getpid()}.probe")
+    try:
+        probe_file.write_text("", encoding="utf-8")
+    except OSError as error:
+        raise SubthisError(
+            f"Cannot write into {output.parent} ({error.strerror or error}).\n"
+            "Choose another place with:  -o /path/to/subtitles.srt"
+        ) from error
+    finally:
+        with contextlib.suppress(OSError):
+            probe_file.unlink()
     additions: list[str] = []
-    project_terms = video.parent / PROJECT_TERMS_FILENAME
-    if project_terms.is_file():
-        print(f"Using the terms from {project_terms}", file=sys.stderr)
-        additions.extend(project_terms.read_text(encoding="utf-8").splitlines())
+    # Explorer hides extensions, so "subthis-terms.txt" often becomes
+    # "subthis-terms.txt.txt"; accept both.
+    for candidate in (PROJECT_TERMS_FILENAME, PROJECT_TERMS_FILENAME + ".txt"):
+        project_terms = video.parent / candidate
+        if project_terms.is_file():
+            print(f"Using the terms from {project_terms}", file=sys.stderr)
+            additions.extend(
+                project_terms.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+            )
+            break
     for term_string in args.term:
         additions.extend(_parse_term_string(term_string))
-    aliases, terms = load_terms(args.terms_file.expanduser(), additions)
+    terms_file = args.terms_file.expanduser()
+    if terms_file != TERMS_FILE and not terms_file.is_file():
+        raise SubthisError(f"The terms file you pointed at does not exist: {terms_file}")
+    aliases, terms = load_terms(terms_file, additions)
     captions = _caption_settings()
     config = Config(
         api_key=_load_api_key(),
@@ -1591,16 +2054,8 @@ def run(argv: Sequence[str] | None = None) -> int:
     cues, _duration = transcribe_video(video, config)
     if not cues:
         raise SubthisError("No speech was detected, so no subtitle file was written.")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    temporary_output = output.with_name(f".{output.name}.subthis-{os.getpid()}.tmp")
-    try:
-        temporary_output.write_text(
-            render_srt(cues, keep_punctuation=config.keep_punctuation), encoding="utf-8"
-        )
-        os.replace(temporary_output, output)
-    finally:
-        with contextlib.suppress(FileNotFoundError):
-            temporary_output.unlink()
+    srt_text = render_srt(cues, keep_punctuation=config.keep_punctuation)
+    output = _write_srt_somewhere(output, srt_text)
     print()
     _say_ok(f"Done! {len(cues)} subtitles were created.")
     print("  Your subtitle file is here:")
@@ -1626,8 +2081,67 @@ def main() -> int:
         return 1
     except KeyboardInterrupt:
         print("subthis: cancelled", file=sys.stderr)
-        return 130
+        for stream in (sys.stdout, sys.stderr):
+            with contextlib.suppress(Exception):
+                stream.flush()
+        # Worker threads may still be mid-upload; a normal exit would wait
+        # for them (minutes). Leave now; the temp dir was already cleaned.
+        os._exit(130)
+    except BrokenPipeError:
+        # stdout was closed early (e.g. piped into `head`); leave quietly.
+        with contextlib.suppress(Exception):
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 1
+    except OSError as error:
+        if os.environ.get("SUBTHIS_DEBUG"):
+            raise
+        location = f" ({error.filename})" if getattr(error, "filename", None) else ""
+        if getattr(error, "winerror", None) in (32, 33):
+            print(
+                f"subthis: another program has this file open{location}. Close it (a video player,\n"
+                "an editor, or a sync client) and try again.",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            f"subthis: a file or folder problem stopped the run{location}: {error.strerror or error}",
+            file=sys.stderr,
+        )
+        return 1
+    except Exception as error:  # a friendly line beats a traceback for non-technical users
+        if os.environ.get("SUBTHIS_DEBUG"):
+            raise
+        print(
+            f"subthis: something unexpected went wrong ({type(error).__name__}: {error}).\n"
+            "Please report it at https://github.com/ItayCohen-Prog/subthis/issues\n"
+            "(run again with SUBTHIS_DEBUG=1 to see the full details).",
+            file=sys.stderr,
+        )
+        return 1
+
+
+def _launched_by_double_click() -> bool:
+    """True when this console exists only for us (no shell will keep it open)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+
+        processes = (ctypes.c_uint * 8)()
+        count = ctypes.windll.kernel32.GetConsoleProcessList(processes, 8)  # type: ignore[attr-defined]
+        return 0 < count <= 2
+    except Exception:
+        return False
+
+
+def entrypoint() -> int:
+    code = main()
+    if _launched_by_double_click():
+        # Otherwise the window vanishes before the person can read anything.
+        with contextlib.suppress(Exception):
+            input("\nPress Enter to close this window...")
+    return code
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(entrypoint())

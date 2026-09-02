@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -313,8 +314,13 @@ class ApiErrorMessageTests(unittest.TestCase):
         message = subthis._api_error_message(b'{"error":{"message":"bad"}}', 401)
 
         self.assertIn("revoked", message)
-        self.assertIn("subthis setup", message)
+        self.assertIn("subthis config key", message)
         self.assertIn(subthis.API_KEYS_URL, message)
+
+    def test_401_blames_the_environment_variable_when_it_is_set(self) -> None:
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-stale"}):
+            message = subthis._api_error_message(b"{}", 401)
+        self.assertIn("OPENAI_API_KEY environment variable", message)
 
     def test_insufficient_quota_points_at_billing(self) -> None:
         payload = b'{"error":{"message":"...","code":"insufficient_quota"}}'
@@ -380,18 +386,26 @@ class UpdateOfferTests(unittest.TestCase):
         fetch.assert_not_called()
 
     def test_declining_prints_the_update_command_and_continues(self) -> None:
+        import tempfile
+
         tty = mock.Mock()
         tty.isatty.return_value = True
-        with mock.patch.object(subthis.sys, "stdin", tty), mock.patch.object(
-            subthis.sys, "stdout", tty
-        ), mock.patch.object(
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            subthis, "CONFIG_DIR", Path(tmp)
+        ), mock.patch.object(subthis, "SETTINGS_FILE", Path(tmp) / "settings.json"), mock.patch.object(
+            subthis.sys, "stdin", tty
+        ), mock.patch.object(subthis.sys, "stdout", tty), mock.patch.object(
             subthis, "_latest_pypi_version", return_value="99.0.0"
         ), mock.patch.object(subthis, "_ask", return_value="n"), mock.patch(
             "builtins.print"
         ) as printed:
             subthis._maybe_offer_update(["video.mp4"])
-        output = "\n".join(str(call) for call in printed.call_args_list)
-        self.assertIn(subthis._update_command(), output)
+            output = "\n".join(str(call) for call in printed.call_args_list)
+            self.assertIn(subthis._update_command(), output)
+            # a second run the same day skips the network entirely
+            with mock.patch.object(subthis, "_latest_pypi_version") as fetch:
+                subthis._maybe_offer_update(["video.mp4"])
+            fetch.assert_not_called()
 
 
 class ConfigCommandTests(unittest.TestCase):
@@ -439,6 +453,198 @@ class SettingsAndRevealTests(unittest.TestCase):
         lines = ["# comment", "", "OpenAI", "  ", "Wispr Flow = alias", "# more"]
 
         self.assertEqual(subthis._entry_indexes(lines), [2, 4])
+
+
+class RobustnessTests(unittest.TestCase):
+    def test_pasted_key_is_normalized_from_common_copy_shapes(self) -> None:
+        cases = {
+            "  sk-abc  ": "sk-abc",
+            "'sk-abc'": "sk-abc",
+            'OPENAI_API_KEY="sk-abc"': "sk-abc",
+            "export OPENAI_API_KEY=sk-abc": "sk-abc",
+            "Bearer sk-abc": "sk-abc",
+            "sk-abc\nsome other pasted line": "sk-abc",
+            "": "",
+        }
+        for pasted, expected in cases.items():
+            self.assertEqual(subthis._normalize_pasted_key(pasted), expected, pasted)
+
+    def test_env_file_with_bom_and_crlf_still_yields_the_key(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            env_file = Path(tmp) / ".env"
+            env_file.write_bytes("﻿OPENAI_API_KEY=sk-bom\r\n".encode("utf-8"))
+            with mock.patch.object(subthis, "ENV_FILE", env_file), mock.patch.dict(
+                os.environ, {"OPENAI_API_KEY": ""}
+            ):
+                self.assertEqual(subthis._load_api_key(), "sk-bom")
+
+    def test_settings_with_bom_load_and_garbage_is_ignored(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = Path(tmp) / "settings.json"
+            settings.write_bytes('﻿{"open_when_done": true}'.encode("utf-8"))
+            with mock.patch.object(subthis, "SETTINGS_FILE", settings):
+                self.assertTrue(subthis._load_settings()["open_when_done"])
+            settings.write_bytes(b"\xff\xfe not json")
+            with mock.patch.object(subthis, "SETTINGS_FILE", settings):
+                self.assertEqual(subthis._load_settings(), {})
+
+    def test_transient_server_errors_are_retried_then_succeed(self) -> None:
+        import io
+        import urllib.error
+
+        failure = urllib.error.HTTPError("u", 503, "down", {}, io.BytesIO(b"{}"))
+        success = mock.MagicMock()
+        success.__enter__.return_value.read.return_value = b'{"text":"ok"}'
+        with mock.patch.object(
+            subthis.urllib.request, "urlopen", side_effect=[failure, success]
+        ), mock.patch.object(subthis.time, "sleep"):
+            payload = subthis._post_with_retry(mock.Mock(), timeout=5)
+        self.assertEqual(payload, b'{"text":"ok"}')
+
+    def test_quota_errors_are_not_retried(self) -> None:
+        import io
+        import urllib.error
+
+        quota = urllib.error.HTTPError(
+            "u", 429, "quota", {}, io.BytesIO(b'{"error":{"code":"insufficient_quota"}}')
+        )
+        with mock.patch.object(
+            subthis.urllib.request, "urlopen", side_effect=[quota]
+        ) as urlopen, mock.patch.object(subthis.time, "sleep"):
+            with self.assertRaises(subthis.SubthisError) as caught:
+                subthis._post_with_retry(mock.Mock(), timeout=5)
+        self.assertEqual(urlopen.call_count, 1)
+        self.assertIn(subthis.BILLING_URL, str(caught.exception))
+
+    def test_audio_extraction_falls_back_to_aac_when_opus_is_missing(self) -> None:
+        import tempfile
+
+        calls: list[list[str]] = []
+
+        def fake_run(command):
+            calls.append(list(command))
+            if "libopus" in command:
+                raise subthis.SubthisError("ffmpeg failed: Unknown encoder 'libopus'")
+            Path(command[-1]).write_bytes(b"aac")
+            return mock.Mock()
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(subthis, "_run", fake_run):
+            output = subthis._extract_audio(Path("v.mp4"), 0.0, 10.0, Path(tmp) / "chunk-0000.ogg")
+        self.assertEqual(output.suffix, ".m4a")
+        self.assertEqual(len(calls), 2)
+
+    def test_decimal_comma_is_accepted_for_caption_seconds(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(subthis, "CONFIG_DIR", Path(tmp)), mock.patch.object(
+                subthis, "SETTINGS_FILE", Path(tmp) / "settings.json"
+            ):
+                self.assertEqual(subthis.run_config(["captions", "hang", "0,7"]), 0)
+                self.assertAlmostEqual(subthis._caption_settings()["hang"], 0.7)
+
+    def test_ascii_symbols_when_stdout_is_not_utf8(self) -> None:
+        fake_stdout = mock.Mock()
+        fake_stdout.encoding = "cp1252"
+        fake_stdout.isatty.return_value = False
+        with mock.patch.object(subthis.sys, "stdout", fake_stdout):
+            subthis._init_color()
+            self.assertEqual(subthis._SYM["ok"], "OK")
+        subthis._init_color()
+
+    def test_unexpected_exceptions_become_a_friendly_line(self) -> None:
+        with mock.patch.object(subthis, "run", side_effect=ZeroDivisionError("boom")), mock.patch(
+            "sys.stderr"
+        ) as stderr, mock.patch.dict(os.environ, {"SUBTHIS_DEBUG": ""}):
+            self.assertEqual(subthis.main(), 1)
+        written = "".join(str(call) for call in stderr.write.call_args_list)
+        self.assertIn("something unexpected", written)
+        self.assertIn("issues", written)
+
+
+class TerminalKeyTests(unittest.TestCase):
+    @unittest.skipIf(sys.platform == "win32", "pty is POSIX-only")
+    def test_arrow_keys_arriving_in_one_write_are_not_mistaken_for_escape(self) -> None:
+        import pty
+
+        master, slave = pty.openpty()
+        try:
+            with mock.patch.object(subthis.sys, "stdin", os.fdopen(slave, "r", closefd=False)):
+                os.write(master, b"\x1b[A")
+                self.assertEqual(subthis._read_key(), "up")
+                os.write(master, b"\x1b[B")
+                self.assertEqual(subthis._read_key(), "down")
+                os.write(master, b"q")
+                self.assertEqual(subthis._read_key(), "q")
+                os.write(master, "ש".encode("utf-8"))
+                self.assertEqual(subthis._read_key(), "ש")
+        finally:
+            os.close(master)
+            os.close(slave)
+
+
+class InputGuardTests(unittest.TestCase):
+    def test_links_and_folders_are_explained_instead_of_not_found(self) -> None:
+        with mock.patch.object(subthis, "_maybe_offer_update"):
+            with self.assertRaises(subthis.SubthisError) as caught:
+                subthis.run(["https://youtu.be/abc"])
+            self.assertIn("links", str(caught.exception))
+            with self.assertRaises(subthis.SubthisError) as caught:
+                subthis.run([str(Path.cwd())])
+            self.assertIn("folder", str(caught.exception))
+
+    def test_curly_quotes_group_terms_like_straight_ones(self) -> None:
+        self.assertEqual(subthis._parse_term_string("OpenAI ‘API Platform’"), ["OpenAI", "API Platform"])
+
+    def test_apostrophes_inside_hebrew_words_are_not_quotes(self) -> None:
+        self.assertEqual(
+            subthis._parse_term_string("צ'אט ג'יפיטי 'Wispr Flow' don't"),
+            ["צ'אט", "ג'יפיטי", "Wispr Flow", "don't"],
+        )
+
+    def test_subcommands_are_case_insensitive(self) -> None:
+        with mock.patch.object(subthis, "run_setup", return_value=0) as run_setup, mock.patch.object(
+            subthis, "_maybe_offer_update"
+        ):
+            self.assertEqual(subthis.run(["Setup"]), 0)
+        run_setup.assert_called_once_with()
+
+    def test_windows_drive_paths_are_not_mistaken_for_links(self) -> None:
+        self.assertIsNone(re.match(r"^[a-z][a-z0-9+.-]+:/", "C:/Users/x/v.mp4", re.IGNORECASE))
+        self.assertIsNotNone(re.match(r"^[a-z][a-z0-9+.-]+:/", "https:/youtu.be/x", re.IGNORECASE))
+
+    def test_srt_falls_back_to_another_location_when_the_folder_is_unwritable(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            blocked = Path(tmp) / "blocked"
+            blocked.mkdir()
+            calls: list[Path] = []
+            real_write = subthis._write_atomically
+
+            def flaky(path: Path, content: str) -> None:
+                calls.append(path)
+                if path.parent == blocked:
+                    raise PermissionError(13, "Permission denied")
+                real_write(path, content)
+
+            with mock.patch.object(subthis, "_write_atomically", flaky), mock.patch.object(
+                subthis.Path, "home", return_value=Path(tmp)
+            ), mock.patch("builtins.print"):
+                written = subthis._write_srt_somewhere(blocked / "talk.srt", "1\n")
+            self.assertNotEqual(written.parent, blocked)
+            self.assertTrue(written.read_text(encoding="utf-8-sig").startswith("1"))
+
+    def test_find_tool_checks_homebrew_style_directories(self) -> None:
+        with mock.patch.object(subthis.shutil, "which", return_value=None), mock.patch.object(
+            subthis, "_EXTRA_TOOL_DIRS", (str(Path(sys.executable).parent),)
+        ):
+            self.assertIsNotNone(subthis._find_tool(Path(sys.executable).name))
+            self.assertIsNone(subthis._find_tool("definitely-not-a-real-tool"))
 
 
 class SetupDispatchTests(unittest.TestCase):

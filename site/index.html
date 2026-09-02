@@ -10,18 +10,26 @@
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700&family=Heebo:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css?v=202609021544">
 </head>
 <body>
+<svg hidden aria-hidden="true" style="display:none">
+  <!-- Lucide icons (ISC) https://lucide.dev -->
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></symbol>
+</svg>
 
 <header class="site-header">
   <div class="wrap">
     <a class="logo" href="/"><span class="cap">אב</span>subthis</a>
     <nav class="site-nav" aria-label="ניווט">
       <a href="/docs/">תיעוד</a>
-      <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
-      <a href="https://pypi.org/project/subthis/">PyPI</a>
+      <a href="https://github.com/ItayCohen-Prog/subthis">GitHub<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
+      <a href="https://pypi.org/project/subthis/">PyPI<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
       <div class="lang-switch" aria-label="שפה">
         <a href="/en/" lang="en">EN</a>
         <a class="active" href="/" aria-current="true">עב</a>
@@ -33,15 +41,54 @@
 <main>
   <section class="hero">
     <div class="wrap">
-      <div class="screen" aria-hidden="true">
-        <span class="timecode">00:00:00,000</span>
-        <div class="cue" data-cues='["שלום, קוראים לזה","<mark>subthis</mark>","הוא מכין כתוביות","שלוש מילים <mark>בכל פעם</mark>","עברית ואנגלית","באותו <mark>משפט</mark>","ישר מהטרמינל","בלי <mark>עריכה ידנית</mark>","מוכן תוך דקות"]'>שלום, קוראים לזה</div>
-      </div>
       <h1>עדיין <mark>משלמים</mark> על כתוביות ב־2026?</h1>
-      <p class="sub">subthis עושה את אותה עבודה, בקוד פתוח. כתוביות ‎.srt‎ מדויקות של עד שלוש מילים בשורה, לעברית עם מונחים באנגלית. בלי מנוי ובלי חבילות דקות: משלמים רק ל‑OpenAI על השימוש, בערך סנט אחד לדקת וידאו.</p>
+      <div class="kaps-mock" dir="rtl">
+        <div class="term-bar">
+          <i></i><i></i><i></i>
+          <span dir="ltr">kaps.co.il/pricing</span>
+          <span class="kp-logo"><img src="/assets/kaps-logo.png" alt="Kaps" width="106" height="28"></span>
+        </div>
+        <div class="kp-body">
+          <p class="kp-title">תמחור פשוט. עבור כל סוג של עורך</p>
+          <p class="kp-toggle"><span class="kp-pill">מנוי שנתי · עד 42% הנחה</span></p>
+          <div class="kp-cards">
+          <div class="kp-card">
+            <h3><span class="kp-emoji" aria-hidden="true">🧢</span> עורך מתחיל</h3>
+            <div class="kp-price-row">
+              <p class="kp-price"><span class="kp-amount"><span dir="ltr">$22.9</span> לחודש</span> <s dir="ltr">$39</s></p>
+              <span class="kp-tag"><small>עם subthis</small><b dir="ltr">≈ $0.35</b></span>
+            </div>
+            <p class="kp-note">בחיוב שנתי</p>
+            <p class="kp-mins">עד 30 דקות תמלול כל חודש</p>
+            <span class="kp-btn">נסו עכשיו</span>
+          </div>
+          <div class="kp-card featured">
+            <h3><span class="kp-emoji" aria-hidden="true">🚀</span> פרילאנסר מקצועי</h3>
+            <div class="kp-price-row">
+              <p class="kp-price"><span class="kp-amount"><span dir="ltr">$34.9</span> לחודש</span> <s dir="ltr">$60</s></p>
+              <span class="kp-tag"><small>עם subthis</small><b dir="ltr">≈ $1.30</b></span>
+            </div>
+            <p class="kp-note">בחיוב שנתי</p>
+            <p class="kp-mins">עד 120 דקות תמלול כל חודש</p>
+            <span class="kp-btn">נסו עכשיו</span>
+          </div>
+          <div class="kp-card">
+            <h3><span class="kp-emoji" aria-hidden="true">💼</span> מנוי עסקי</h3>
+            <div class="kp-price-row">
+              <p class="kp-price"><span class="kp-amount"><span dir="ltr">$119</span> לחודש</span> <s dir="ltr">$199</s></p>
+              <span class="kp-tag"><small>עם subthis</small><b dir="ltr">≈ $5.30</b></span>
+            </div>
+            <p class="kp-note">בחיוב שנתי</p>
+            <p class="kp-mins">עד 500 דקות תמלול כל חודש</p>
+            <span class="kp-btn">נסו עכשיו</span>
+          </div>
+          </div>
+        </div>
+      </div>
+      <p class="sub">subthis עושה את אותה עבודה, בקוד פתוח וברישיון MIT. אין מנוי ואין מתווך: משלמים ל‑OpenAI ישירות, רק על מה שמשתמשים, בערך סנט אחד לדקת וידאו. המפתח שלכם, החשבון שלכם, הקוד פתוח לכולם.</p>
       <div class="cta-row">
-        <a class="btn primary" href="#install">התקנת subthis</a>
-        <a class="btn" href="/docs/">לתיעוד המלא</a>
+        <a class="btn primary" href="#install"><svg class="ic"><use href="#i-terminal"/></svg>התקנת subthis</a>
+        <a class="btn" href="/docs/"><svg class="ic"><use href="#i-book"/></svg>לתיעוד המלא</a>
       </div>
       <p class="badges">רישיון MIT · פייתון, בלי תלויות · Windows, macOS, Linux</p>
     </div>
@@ -51,19 +98,23 @@
     <div class="wrap">
       <p class="cue-label"><span class="n">1</span><span>00:00:04,000 --&gt; 00:00:24,000</span></p>
       <h2>בואו נעשה חשבון</h2>
-      <p class="lede">שירותי כתוביות מוכרים דקות תמלול במנוי חודשי. עם subthis משלמים רק על השימוש עצמו, ישירות ל‑OpenAI. אלה המספרים, זו לצד זו:</p>
+      <p class="lede">כלי כתוביות מוכרים דקות תמלול במנוי חודשי. עם subthis משלמים רק על השימוש עצמו, ישירות ל‑OpenAI. אלה המחירים הציבוריים של ארבעה כלים פופולריים, מול אותו שימוש בדיוק עם subthis:</p>
       <div style="overflow-x:auto">
       <table class="price-table">
-        <thead><tr><th>החבילה ב‑kaps.co.il*</th><th>דקות תמלול בחודש</th><th>המחיר שם</th><th>אותן דקות עם subthis</th></tr></thead>
+        <thead><tr><th>הכלי</th><th>המסלול</th><th>מה מקבלים בחודש</th><th>המחיר שם*</th><th>אותו שימוש עם subthis</th></tr></thead>
         <tbody>
-          <tr><td>עורך מתחיל</td><td><span dir="ltr">30</span></td><td><span dir="ltr">$22.9</span> לחודש</td><td class="ours"><span dir="ltr">≈ $0.35</span></td></tr>
-          <tr><td>פרילאנסר מקצועי</td><td><span dir="ltr">120</span></td><td><span dir="ltr">$34.9</span> לחודש</td><td class="ours"><span dir="ltr">≈ $1.30</span></td></tr>
-          <tr><td>מנוי עסקי</td><td><span dir="ltr">500</span></td><td><span dir="ltr">$119</span> לחודש</td><td class="ours"><span dir="ltr">≈ $5.30</span></td></tr>
+          <tr><th scope="row" rowspan="2" class="tool"><span class="tool-chip"><img src="/assets/logos/kaps.png" alt="" width="28" height="28"><span>Kaps</span></span></th><td>עורך מתחיל</td><td>30 דקות תמלול</td><td class="price"><span dir="ltr">$22.9</span> לחודש</td><td class="ours"><span dir="ltr">≈ $0.35</span></td></tr>
+          <tr><td>מנוי עסקי</td><td>500 דקות תמלול</td><td class="price"><span dir="ltr">$119</span> לחודש</td><td class="ours"><span dir="ltr">≈ $5.30</span></td></tr>
+          <tr><th scope="row" rowspan="1" class="tool"><span class="tool-chip"><img src="/assets/logos/captions.png" alt="" width="28" height="28"><span>Captions</span></span></th><td>Basic</td><td>כתוביות בלי מכסת דקות, באפליקציה</td><td class="price"><span dir="ltr">$9.99</span> לחודש</td><td class="ours"><span dir="ltr">≈ $1.30</span> <small>ל‑120 דקות</small></td></tr>
+          <tr><th scope="row" rowspan="2" class="tool"><span class="tool-chip"><img src="/assets/logos/submagic.png" alt="" width="28" height="28"><span>Submagic</span></span></th><td>Starter</td><td>15 סרטונים עד 2 דקות (עד 30 דקות)</td><td class="price"><span dir="ltr">$12</span> לחודש</td><td class="ours"><span dir="ltr">≈ $0.35</span></td></tr>
+          <tr><td>Pro</td><td>40 סרטונים עד 5 דקות (עד 200 דקות)</td><td class="price"><span dir="ltr">$23</span> לחודש</td><td class="ours"><span dir="ltr">≈ $2.10</span></td></tr>
+          <tr><th scope="row" rowspan="2" class="tool"><span class="tool-chip"><img src="/assets/logos/happyscribe.png" alt="" width="28" height="28"><span>Happy Scribe</span></span></th><td>Basic</td><td>120 דקות תמלול</td><td class="price"><span dir="ltr">$8.50</span> לחודש</td><td class="ours"><span dir="ltr">≈ $1.30</span></td></tr>
+          <tr><td>Pro</td><td>600 דקות תמלול</td><td class="price"><span dir="ltr">$19</span> לחודש</td><td class="ours"><span dir="ltr">≈ $6.30</span></td></tr>
         </tbody>
       </table>
       </div>
       <p class="verdict">אותן 500 דקות: <mark><span dir="ltr">≈ $5</span> במקום <span dir="ltr">$119</span></mark>. כל חודש.</p>
-      <p class="footnote">* המחירים מעמוד התמחור הציבורי של kaps.co.il במסלול חיוב שנתי, נכון לספטמבר 2026. העלות עם subthis מחושבת לפי מחירי ה‑API של OpenAI: שני מעברי תמלול, <span dir="ltr">$0.0045 + $0.006</span> לדקה. subthis עצמו חינמי, בקוד פתוח, בלי הגבלת דקות ובלי הגבלת עורכים.</p>
+      <p class="footnote">* מחירים מעמודי התמחור הציבוריים של kaps.co.il, captions.ai, submagic.co ו‑happyscribe.com, במסלול חיוב שנתי כשיש כזה, נכון לספטמבר 2026. Captions לא מודדת דקות לכתוביות, ולכן הוצג מחיר המסלול הזול מול דוגמה של 120 דקות. Submagic מגבילה מספר סרטונים ואורך מקסימלי, וחישבנו את המקסימום האפשרי. העלות עם subthis מחושבת לפי מחירי ה‑API של OpenAI: שני מעברי תמלול, <span dir="ltr">$0.0045 + $0.006</span> לדקה. subthis עצמו חינמי, בקוד פתוח, בלי הגבלת דקות ובלי הגבלת עורכים.</p>
     </div>
   </section>
 
@@ -106,18 +157,18 @@
           </li>
           <li>
             <h3>התקינו את uv (הוא מביא איתו את פייתון)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>סגרו את PowerShell ופתחו אותו מחדש כדי שיכיר את הפקודה החדשה.</p>
           </li>
           <li>
             <h3>התקינו את ffmpeg (הוא קורא את הסאונד מהסרטונים)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">winget install ffmpeg</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">winget install --id Gyan.FFmpeg -e</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
           </li>
           <li>
-            <h3>התקינו את subthis והריצו את ההגדרה</h3>
+            <h3>התקינו את subthis והריצו את ההפעלה הראשונה</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
-subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
-            <p>ההגדרה מלווה אתכם צעד-צעד להשגת מפתח OpenAI, גם אם מעולם לא השתמשתם בו.</p>
+subthis setup</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+            <p>ההפעלה הראשונה מלווה אתכם צעד-צעד להשגת מפתח OpenAI, גם אם מעולם לא השתמשתם בו.</p>
           </li>
         </ol>
       </div>
@@ -130,19 +181,19 @@ subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</b
           </li>
           <li>
             <h3>התקינו את uv (הוא מביא איתו את פייתון)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>סגרו את הטרמינל ופתחו אותו מחדש כדי שיכיר את הפקודה החדשה.</p>
           </li>
           <li>
             <h3>התקינו את ffmpeg (הוא קורא את הסאונד מהסרטונים)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">brew install ffmpeg</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">brew install ffmpeg</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>‏אין לכם Homebrew? התקינו אותו קודם עם הפקודה שבאתר <a href="https://brew.sh">brew.sh</a>, ואז הריצו את השורה למעלה.</p>
           </li>
           <li>
-            <h3>התקינו את subthis והריצו את ההגדרה</h3>
+            <h3>התקינו את subthis והריצו את ההפעלה הראשונה</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
-subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
-            <p>ההגדרה מלווה אתכם צעד-צעד להשגת מפתח OpenAI, גם אם מעולם לא השתמשתם בו.</p>
+subthis setup</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+            <p>ההפעלה הראשונה מלווה אתכם צעד-צעד להשגת מפתח OpenAI, גם אם מעולם לא השתמשתם בו.</p>
           </li>
         </ol>
       </div>
@@ -155,20 +206,20 @@ subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</b
           </li>
           <li>
             <h3>התקינו את uv (הוא מביא איתו את פייתון)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>אחרי ההתקנה פתחו טרמינל חדש כדי שיכיר את הפקודה.</p>
           </li>
           <li>
             <h3>התקינו את ffmpeg (הוא קורא את הסאונד מהסרטונים)</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">sudo apt install ffmpeg      # Debian / Ubuntu
 sudo dnf install ffmpeg      # Fedora
-sudo pacman -S ffmpeg        # Arch</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+sudo pacman -S ffmpeg        # Arch</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
           </li>
           <li>
-            <h3>התקינו את subthis והריצו את ההגדרה</h3>
+            <h3>התקינו את subthis והריצו את ההפעלה הראשונה</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
-subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
-            <p>ההגדרה מלווה אתכם צעד-צעד להשגת מפתח OpenAI, גם אם מעולם לא השתמשתם בו.</p>
+subthis setup</pre><button class="copy-btn" title="העתקה" aria-label="העתקה" data-done="הועתק"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+            <p>ההפעלה הראשונה מלווה אתכם צעד-צעד להשגת מפתח OpenAI, גם אם מעולם לא השתמשתם בו.</p>
           </li>
         </ol>
       </div>
@@ -204,7 +255,7 @@ subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</b
       <div class="grid">
         <div class="card"><h3>עברית פוגשת אנגלית</h3><p>שמות חברות, כלים ומונחים נשארים באיות האנגלי המקורי בתוך דיבור בעברית. קלוד הופך ל‑Claude, בכל פעם.</p></div>
         <div class="card"><h3>מונחים שאתם מלמדים</h3><p>הוסיפו שמות וביטויים משלכם להרצה אחת, לתיקייה, או לכל הסרטונים, כולל עורך אינטראקטיבי לרשימה השמורה.</p></div>
-        <div class="card"><h3>הגדרה שמלווה</h3><p>פעם ראשונה עם ה‑API של OpenAI? ההגדרה מובילה אתכם למפתח ולחמישה דולר של קרדיט, ובודקת את המפתח לפני השמירה.</p></div>
+        <div class="card"><h3>הפעלה ראשונה שמלווה</h3><p>פעם ראשונה עם ה‑API של OpenAI? ההפעלה הראשונה מובילה אתכם למפתח ולחמישה דולר של קרדיט, ובודקת את המפתח לפני השמירה.</p></div>
         <div class="card"><h3>שגיאות שעוזרות</h3><p>מפתח שבוטל או יתרה ריקה מייצרים משפט ברור עם הקישור המדויק לתיקון, לא ערימת שגיאות.</p></div>
         <div class="card"><h3>עדכונים שמציעים את עצמם</h3><p>כשיוצאת גרסה חדשה, subthis שואל פעם אחת, מתעדכן, ומריץ מחדש בדיוק את הפקודה שלכם.</p></div>
         <div class="card"><h3>סרטונים ארוכים בכיף</h3><p>הקלטות של שעות נחתכות, מתומללות וממוזגות אוטומטית, בלי לעבור את מגבלות ההעלאה.</p></div>
@@ -215,7 +266,7 @@ subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</b
   <section class="block reveal" id="setup-shot">
     <div class="wrap">
       <p class="cue-label"><span class="n">6</span><span>00:02:24,000 --&gt; 00:02:46,000</span></p>
-      <h2>ההגדרה, בדיוק כמו שתראו אותה</h2>
+      <h2>ההפעלה הראשונה, בדיוק כמו שתראו אותה</h2>
       <p class="lede">פלט אמיתי של <code dir="ltr">subthis setup</code>, בלי עריכות. (הכלי עצמו מדבר אנגלית; ההוראות שלו פשוטות במכוון.)</p>
       <div class="term">
         <div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div>
@@ -248,13 +299,13 @@ Paste your OpenAI key here and press Enter: sk-•••••••••••
   <div class="wrap">
     <span>subthis · רישיון MIT</span>
     <a href="/docs/">תיעוד</a>
-    <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
-    <a href="https://pypi.org/project/subthis/">PyPI</a>
+    <a href="https://github.com/ItayCohen-Prog/subthis">GitHub<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
+    <a href="https://pypi.org/project/subthis/">PyPI<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
     <span class="spacer"></span>
     <a href="/llms.txt">llms.txt</a>
   </div>
 </footer>
 
-<script src="/assets/site.js"></script>
+<script src="/assets/site.js?v=202609021544"></script>
 </body>
 </html>

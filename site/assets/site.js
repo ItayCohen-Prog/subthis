@@ -1,32 +1,7 @@
-/* subthis site behaviors: caption player, OS detection, tabs, copy, reveal, typing demo. */
+/* subthis site behaviors: OS detection, tabs, copy, reveal, typing demo. */
 (function () {
   "use strict";
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* ---- hero caption player: cycles cues with an SRT clock ---- */
-  var cueEl = document.querySelector("[data-cues]");
-  if (cueEl) {
-    var cues;
-    try { cues = JSON.parse(cueEl.getAttribute("data-cues")); } catch (e) { cues = []; }
-    var tcEl = document.querySelector(".timecode");
-    var index = 0;
-    var startedAt = Date.now();
-    function srt(ms) {
-      var s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
-      function pad(n, w) { return String(n).padStart(w, "0"); }
-      return pad(h, 2) + ":" + pad(m % 60, 2) + ":" + pad(s % 60, 2) + "," + pad(ms % 1000, 3);
-    }
-    function show(i) { cueEl.innerHTML = cues[i % cues.length]; }
-    if (cues.length) show(0);
-    if (!reduced && cues.length > 1) {
-      setInterval(function () {
-        index += 1;
-        cueEl.classList.add("swap");
-        setTimeout(function () { show(index); cueEl.classList.remove("swap"); }, 180);
-      }, 1900);
-      if (tcEl) setInterval(function () { tcEl.textContent = srt(Date.now() - startedAt); }, 90);
-    }
-  }
 
   /* ---- OS detection for the install section ---- */
   function detectOS() {
@@ -64,10 +39,10 @@
       if (!pre) return;
       var text = pre.innerText.replace(/^\$ /gm, "");
       navigator.clipboard.writeText(text).then(function () {
-        var was = btn.textContent;
-        btn.textContent = btn.getAttribute("data-done") || "copied";
+        var was = btn.title;
+        btn.title = btn.getAttribute("data-done") || "copied";
         btn.classList.add("done");
-        setTimeout(function () { btn.textContent = was; btn.classList.remove("done"); }, 1400);
+        setTimeout(function () { btn.title = was; btn.classList.remove("done"); }, 1400);
       });
     });
   });
@@ -120,6 +95,18 @@
         }
       }
       function step() { pre.innerHTML = ""; nextLine(); }
+      /* Reserve the terminal's full height up front so the page below it never
+         shifts while lines are typed in or the loop restarts. */
+      function reserve() {
+        var probe = pre.cloneNode(false);
+        probe.innerHTML = lines.map(function (l) { return l.type === "cmd" ? "$ " + l.text : l.html; }).join("\n") + '<span class="cursor"></span>';
+        probe.style.position = "absolute"; probe.style.visibility = "hidden"; probe.style.minHeight = "0";
+        pre.parentNode.appendChild(probe);
+        pre.style.minHeight = probe.offsetHeight + "px";
+        pre.parentNode.removeChild(probe);
+      }
+      reserve();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(reserve);
       if ("IntersectionObserver" in window) {
         var seen = false;
         new IntersectionObserver(function (entries, obs) {

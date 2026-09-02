@@ -13,7 +13,7 @@ subthis needs uv (installs subthis and Python itself) and ffmpeg (reads audio fr
 Windows (PowerShell):
 
     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-    winget install ffmpeg
+    winget install --id Gyan.FFmpeg -e
     uv tool install subthis
 
 macOS (Terminal; install Homebrew from https://brew.sh first if missing):
@@ -69,7 +69,7 @@ Per-folder terms: put a `subthis-terms.txt` file next to your videos; it is pick
 
 ## 6. Updates
 
-At the start of an interactive run subthis checks PyPI (3-second budget, silent offline). If newer: it asks once; yes updates and reruns the same command, no prints `uv tool upgrade subthis` for later.
+At the start of an interactive run subthis checks PyPI (3-second budget, silent offline). If newer: it asks once; yes updates and reruns the same command, no prints `uv tool upgrade subthis` for later. On Windows the update command is always printed for a fresh window, since a running program cannot replace itself.
 
 ## 7. Troubleshooting
 

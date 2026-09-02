@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subthis"
-version = "1.7.2"
+version = "1.8.0"
 description = "Create short, accurately worded SRT captions from a video"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,7 +17,7 @@ keywords = ["subtitles", "srt", "captions", "transcription", "whisper"]
 Repository = "https://github.com/ItayCohen-Prog/subthis"
 
 [project.scripts]
-subthis = "subthis:main"
+subthis = "subthis:entrypoint"
 
 [tool.setuptools]
 py-modules = ["subthis"]

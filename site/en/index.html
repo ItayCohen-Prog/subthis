@@ -11,17 +11,25 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/style.css?v=202609021544">
 </head>
 <body>
+<svg hidden aria-hidden="true" style="display:none">
+  <!-- Lucide icons (ISC) https://lucide.dev -->
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></symbol>
+</svg>
 
 <header class="site-header">
   <div class="wrap">
     <a class="logo" href="/en/"><span class="cap">אב</span>subthis</a>
     <nav class="site-nav" aria-label="Site">
       <a href="/en/docs/">Docs</a>
-      <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
-      <a href="https://pypi.org/project/subthis/">PyPI</a>
+      <a href="https://github.com/ItayCohen-Prog/subthis">GitHub<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
+      <a href="https://pypi.org/project/subthis/">PyPI<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
       <div class="lang-switch" aria-label="Language">
         <a class="active" href="/en/" aria-current="true">EN</a>
         <a href="/" lang="he">עב</a>
@@ -33,15 +41,54 @@
 <main>
   <section class="hero">
     <div class="wrap">
-      <div class="screen" aria-hidden="true">
-        <span class="timecode">00:00:00,000</span>
-        <div class="cue" data-cues='["שלום, קוראים לזה","<mark>subthis</mark>","it makes subtitles","שלוש מילים <mark>בכל פעם</mark>","Hebrew and English","באותו <mark>משפט</mark>","from your terminal","בלי <mark>עריכה ידנית</mark>","ready in minutes"]'>שלום, קוראים לזה</div>
-      </div>
       <h1>Still <mark>paying</mark> for subtitles in 2026?</h1>
-      <p class="sub">subthis does the same job, open source. Accurate .srt captions of at most three words per cue, for Hebrew with English terms mixed in. No subscription, no minute packages: you pay only OpenAI for what you use, about one cent per minute of video.</p>
+      <div class="kaps-mock" dir="ltr">
+        <div class="term-bar">
+          <i></i><i></i><i></i>
+          <span dir="ltr">kaps.co.il/pricing</span>
+          <span class="kp-logo"><img src="/assets/kaps-logo.png" alt="Kaps" width="106" height="28"></span>
+        </div>
+        <div class="kp-body">
+          <p class="kp-title">Simple pricing. For every kind of editor</p>
+          <p class="kp-toggle"><span class="kp-pill">Yearly plan · up to 42% off</span></p>
+          <div class="kp-cards">
+          <div class="kp-card">
+            <h3><span class="kp-emoji" aria-hidden="true">🧢</span> Starter editor</h3>
+            <div class="kp-price-row">
+              <p class="kp-price"><span class="kp-amount"><span dir="ltr">$22.9</span>/mo</span> <s dir="ltr">$39</s></p>
+              <span class="kp-tag"><small>with subthis</small><b dir="ltr">≈ $0.35</b></span>
+            </div>
+            <p class="kp-note">billed yearly</p>
+            <p class="kp-mins">Up to 30 transcription minutes a month</p>
+            <span class="kp-btn">Try now</span>
+          </div>
+          <div class="kp-card featured">
+            <h3><span class="kp-emoji" aria-hidden="true">🚀</span> Pro freelancer</h3>
+            <div class="kp-price-row">
+              <p class="kp-price"><span class="kp-amount"><span dir="ltr">$34.9</span>/mo</span> <s dir="ltr">$60</s></p>
+              <span class="kp-tag"><small>with subthis</small><b dir="ltr">≈ $1.30</b></span>
+            </div>
+            <p class="kp-note">billed yearly</p>
+            <p class="kp-mins">Up to 120 transcription minutes a month</p>
+            <span class="kp-btn">Try now</span>
+          </div>
+          <div class="kp-card">
+            <h3><span class="kp-emoji" aria-hidden="true">💼</span> Business</h3>
+            <div class="kp-price-row">
+              <p class="kp-price"><span class="kp-amount"><span dir="ltr">$119</span>/mo</span> <s dir="ltr">$199</s></p>
+              <span class="kp-tag"><small>with subthis</small><b dir="ltr">≈ $5.30</b></span>
+            </div>
+            <p class="kp-note">billed yearly</p>
+            <p class="kp-mins">Up to 500 transcription minutes a month</p>
+            <span class="kp-btn">Try now</span>
+          </div>
+          </div>
+        </div>
+      </div>
+      <p class="sub">subthis does the same job, open source under the MIT license. No subscription and no middleman: you pay OpenAI directly, only for what you use, about one cent per minute of video. Your key, your account, and code anyone can read.</p>
       <div class="cta-row">
-        <a class="btn primary" href="#install">Install subthis</a>
-        <a class="btn" href="/en/docs/">Read the docs</a>
+        <a class="btn primary" href="#install"><svg class="ic"><use href="#i-terminal"/></svg>Install subthis</a>
+        <a class="btn" href="/en/docs/"><svg class="ic"><use href="#i-book"/></svg>Read the docs</a>
       </div>
       <p class="badges">MIT license · Python, no dependencies · Windows, macOS, Linux</p>
     </div>
@@ -51,19 +98,23 @@
     <div class="wrap">
       <p class="cue-label"><span class="n">1</span><span>00:00:04,000 --&gt; 00:00:24,000</span></p>
       <h2>Let's do the math</h2>
-      <p class="lede">Subtitle services sell transcription minutes as a monthly subscription. With subthis you pay only for the usage itself, directly to OpenAI. Here are the numbers, side by side:</p>
+      <p class="lede">Subtitle tools sell transcription minutes as a monthly subscription. With subthis you pay only for the usage itself, directly to OpenAI. Here are the public prices of four popular tools next to the exact same usage with subthis:</p>
       <div style="overflow-x:auto">
       <table class="price-table">
-        <thead><tr><th>Package at kaps.co.il*</th><th>Minutes / month</th><th>Their price</th><th>Same minutes with subthis</th></tr></thead>
+        <thead><tr><th>Tool</th><th>Plan</th><th>What you get per month</th><th>Their price*</th><th>Same usage with subthis</th></tr></thead>
         <tbody>
-          <tr><td>Starter editor</td><td>30</td><td>$22.9 / month</td><td class="ours">≈ $0.35</td></tr>
-          <tr><td>Professional freelancer</td><td>120</td><td>$34.9 / month</td><td class="ours">≈ $1.30</td></tr>
-          <tr><td>Business plan</td><td>500</td><td>$119 / month</td><td class="ours">≈ $5.30</td></tr>
+          <tr><th scope="row" rowspan="2" class="tool"><span class="tool-chip"><img src="/assets/logos/kaps.png" alt="" width="28" height="28"><span>Kaps</span></span></th><td>Starter editor</td><td>30 transcription minutes</td><td class="price"><span dir="ltr">$22.9</span> / month</td><td class="ours"><span dir="ltr">≈ $0.35</span></td></tr>
+          <tr><td>Business</td><td>500 transcription minutes</td><td class="price"><span dir="ltr">$119</span> / month</td><td class="ours"><span dir="ltr">≈ $5.30</span></td></tr>
+          <tr><th scope="row" rowspan="1" class="tool"><span class="tool-chip"><img src="/assets/logos/captions.png" alt="" width="28" height="28"><span>Captions</span></span></th><td>Basic</td><td>Captions with no minute cap, in the app</td><td class="price"><span dir="ltr">$9.99</span> / month</td><td class="ours"><span dir="ltr">≈ $1.30</span> <small>for 120 min</small></td></tr>
+          <tr><th scope="row" rowspan="2" class="tool"><span class="tool-chip"><img src="/assets/logos/submagic.png" alt="" width="28" height="28"><span>Submagic</span></span></th><td>Starter</td><td>15 videos up to 2 min (30 min max)</td><td class="price"><span dir="ltr">$12</span> / month</td><td class="ours"><span dir="ltr">≈ $0.35</span></td></tr>
+          <tr><td>Pro</td><td>40 videos up to 5 min (200 min max)</td><td class="price"><span dir="ltr">$23</span> / month</td><td class="ours"><span dir="ltr">≈ $2.10</span></td></tr>
+          <tr><th scope="row" rowspan="2" class="tool"><span class="tool-chip"><img src="/assets/logos/happyscribe.png" alt="" width="28" height="28"><span>Happy Scribe</span></span></th><td>Basic</td><td>120 transcription minutes</td><td class="price"><span dir="ltr">$8.50</span> / month</td><td class="ours"><span dir="ltr">≈ $1.30</span></td></tr>
+          <tr><td>Pro</td><td>600 transcription minutes</td><td class="price"><span dir="ltr">$19</span> / month</td><td class="ours"><span dir="ltr">≈ $6.30</span></td></tr>
         </tbody>
       </table>
       </div>
       <p class="verdict">The same 500 minutes: <mark>≈ $5 instead of $119</mark>. Every month.</p>
-      <p class="footnote">* Prices from kaps.co.il's public pricing page, annual billing, as of September 2026. The subthis figure uses OpenAI's API prices: two transcription passes, $0.0045 + $0.006 per minute. subthis itself is free and open source, with no minute limits and no per-seat limits.</p>
+      <p class="footnote">* Prices from the public pricing pages of kaps.co.il, captions.ai, submagic.co and happyscribe.com, annual billing where offered, as of September 2026. Captions does not meter minutes for captioning, so its cheapest plan is shown against a 120-minute example. Submagic caps the number of videos and their length; we used the maximum possible. The subthis figure uses OpenAI's API prices: two transcription passes, $0.0045 + $0.006 per minute. subthis itself is free and open source, with no minute limits and no per-seat limits.</p>
     </div>
   </section>
 
@@ -106,17 +157,17 @@
           </li>
           <li>
             <h3>Install uv (it brings Python with it)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Close PowerShell and open it again so it learns the new command.</p>
           </li>
           <li>
             <h3>Install ffmpeg (reads the sound from videos)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">winget install ffmpeg</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">winget install --id Gyan.FFmpeg -e</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
           </li>
           <li>
             <h3>Install subthis and run setup</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
-subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></div>
+subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
           </li>
         </ol>
@@ -130,18 +181,18 @@ subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></di
           </li>
           <li>
             <h3>Install uv (it brings Python with it)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Close Terminal and open it again so it learns the new command.</p>
           </li>
           <li>
             <h3>Install ffmpeg (reads the sound from videos)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">brew install ffmpeg</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">brew install ffmpeg</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>No Homebrew yet? Install it first with the one command on <a href="https://brew.sh">brew.sh</a>, then run the line above.</p>
           </li>
           <li>
             <h3>Install subthis and run setup</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
-subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></div>
+subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
           </li>
         </ol>
@@ -155,19 +206,19 @@ subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></di
           </li>
           <li>
             <h3>Install uv (it brings Python with it)</h3>
-            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" data-done="copied">copy</button></div>
+            <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Open a new terminal afterwards so it learns the new command.</p>
           </li>
           <li>
             <h3>Install ffmpeg (reads the sound from videos)</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">sudo apt install ffmpeg      # Debian / Ubuntu
 sudo dnf install ffmpeg      # Fedora
-sudo pacman -S ffmpeg        # Arch</pre><button class="copy-btn" data-done="copied">copy</button></div>
+sudo pacman -S ffmpeg        # Arch</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
           </li>
           <li>
             <h3>Install subthis and run setup</h3>
             <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
-subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></div>
+subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
           </li>
         </ol>
@@ -260,13 +311,13 @@ Paste your OpenAI key here and press Enter: sk-•••••••••••
   <div class="wrap">
     <span>subthis · MIT license</span>
     <a href="/en/docs/">Docs</a>
-    <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
-    <a href="https://pypi.org/project/subthis/">PyPI</a>
+    <a href="https://github.com/ItayCohen-Prog/subthis">GitHub<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
+    <a href="https://pypi.org/project/subthis/">PyPI<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
     <span class="spacer"></span>
     <a href="/llms.txt">llms.txt</a>
   </div>
 </footer>
 
-<script src="/assets/site.js"></script>
+<script src="/assets/site.js?v=202609021544"></script>
 </body>
 </html>
