@@ -14,16 +14,16 @@ Works on Linux, macOS and Windows. No Python dependencies outside the standard l
 With [uv](https://docs.astral.sh/uv/) (installs Python too if needed):
 
 ```sh
-uv tool install /path/to/subthis
+uv tool install subthis
 ```
 
 Or with pipx:
 
 ```sh
-pipx install /path/to/subthis
+pipx install subthis
 ```
 
-Both put a `subthis` command on your PATH on any OS. To install from a git remote instead: `uv tool install git+<repo-url>`.
+Both pull [subthis from PyPI](https://pypi.org/project/subthis/) and put a `subthis` command on your PATH on any OS. To try it without installing: `uvx subthis video.mp4`.
 
 ## Setup
 
