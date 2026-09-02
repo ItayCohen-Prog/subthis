@@ -7,7 +7,6 @@ import argparse
 import contextlib
 import dataclasses
 import difflib
-import getpass
 import json
 import os
 import re
@@ -19,15 +18,21 @@ import unicodedata
 import urllib.error
 import urllib.request
 import uuid
+import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
+QUOTA_PROBE_URL = "https://api.openai.com/v1/chat/completions"
+QUOTA_PROBE_MODEL = "gpt-5-nano"
+API_KEYS_URL = "https://platform.openai.com/api-keys"
+BILLING_URL = "https://platform.openai.com/settings/organization/billing/overview"
+SIGNUP_URL = "https://platform.openai.com/signup"
 
 
 def _config_dir() -> Path:
@@ -376,12 +381,25 @@ def _multipart(fields: Sequence[tuple[str, str]], file_path: Path) -> tuple[byte
 
 
 def _api_error_message(payload: bytes, status: int | None = None) -> str:
+    text = payload.decode("utf-8", errors="replace")
+    if status in (401, 403) or "invalid_api_key" in text:
+        return (
+            "OpenAI no longer accepts your saved key (it may have been revoked). "
+            f"Run 'subthis setup' to enter a new one from {API_KEYS_URL}"
+        )
+    if "insufficient_quota" in text:
+        return (
+            "Your OpenAI account is out of credit, so it cannot transcribe right now. "
+            f"Add credit at {BILLING_URL} and run subthis again."
+        )
     prefix = f"OpenAI API error{f' {status}' if status else ''}"
     try:
-        decoded = json.loads(payload.decode("utf-8", errors="replace"))
-        message = decoded.get("error", {}).get("message")
+        message = json.loads(text).get("error", {}).get("message")
         if isinstance(message, str) and message.strip():
-            return f"{prefix}: {message.strip()}"
+            result = f"{prefix}: {message.strip()}"
+            if status == 429:
+                result += " (OpenAI is asking us to slow down. Wait a minute and try again.)"
+            return result
     except (json.JSONDecodeError, AttributeError):
         pass
     return prefix
@@ -501,24 +519,177 @@ def _ffmpeg_install_hint() -> str:
     return "install it with your package manager, e.g. sudo pacman -S ffmpeg / sudo apt install ffmpeg"
 
 
-def _verify_api_key(api_key: str) -> str | None:
-    """Return a warning message when verification was inconclusive; raise on a bad key."""
+_COLOR = False
+_ANSI = {"green": "32", "red": "31", "yellow": "33", "cyan": "36", "bold": "1", "dim": "2"}
+
+
+def _paint(text: str, *names: str) -> str:
+    if not _COLOR:
+        return text
+    prefix = "".join(f"\033[{_ANSI[name]}m" for name in names)
+    return f"{prefix}{text}\033[0m"
+
+
+def _say_ok(text: str) -> None:
+    print(_paint("  ✓ ", "green", "bold") + text)
+
+
+def _say_bad(text: str) -> None:
+    print(_paint("  ✗ ", "red", "bold") + text)
+
+
+def _say_note(text: str) -> None:
+    print(_paint("  ! ", "yellow", "bold") + text)
+
+
+def _banner(title: str) -> None:
+    line = "─" * (len(title) + 2)
+    print(_paint(f"╭{line}╮\n│ {title} │\n╰{line}╯", "cyan"))
+
+
+def _ask(prompt: str) -> str:
+    try:
+        return input(_paint(prompt, "bold")).strip()
+    except EOFError:
+        return ""
+
+
+def _open_page(url: str, interactive: bool) -> None:
+    print("    " + _paint(url, "cyan", "bold"))
+    if interactive:
+        opened = False
+        with contextlib.suppress(Exception):
+            opened = webbrowser.open(url)
+        if opened:
+            print(_paint("    (this page should now be open in your browser)", "dim"))
+        else:
+            print(_paint("    (copy that address into your browser)", "dim"))
+
+
+def _classify_key(api_key: str) -> tuple[str, str]:
+    """Test a key against OpenAI. Returns one of: ok, invalid, no_credit, unreachable."""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "User-Agent": f"subthis/{__version__}",
+    }
+    request = urllib.request.Request(KEY_CHECK_URL, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30):
+            pass
+    except urllib.error.HTTPError as error:
+        if error.code in (401, 403):
+            return "invalid", ""
+        return "unreachable", f"HTTP {error.code}"
+    except urllib.error.URLError as error:
+        return "unreachable", str(getattr(error, "reason", "connection failed"))
+
+    # The key is real. Now spend a fraction of a cent on the smallest possible
+    # request, because only a real request reveals an account with no credit.
+    probe = json.dumps(
+        {
+            "model": QUOTA_PROBE_MODEL,
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_completion_tokens": 1,
+        }
+    ).encode("utf-8")
     request = urllib.request.Request(
-        KEY_CHECK_URL,
-        headers={"Authorization": f"Bearer {api_key}", "User-Agent": "subthis/1.1"},
+        QUOTA_PROBE_URL,
+        data=probe,
+        headers={**headers, "Content-Type": "application/json"},
+        method="POST",
     )
     try:
         with urllib.request.urlopen(request, timeout=30):
-            return None
+            pass
     except urllib.error.HTTPError as error:
-        if error.code in (401, 403):
-            raise SubthisError(
-                "OpenAI rejected this API key. Check it at https://platform.openai.com/api-keys"
-            ) from error
-        return f"could not verify the key (HTTP {error.code}); saved it anyway"
-    except urllib.error.URLError as error:
-        reason = getattr(error, "reason", "connection failed")
-        return f"could not reach OpenAI to verify the key ({reason}); saved it anyway"
+        text = error.read().decode("utf-8", errors="replace")
+        if "insufficient_quota" in text:
+            return "no_credit", ""
+        if error.code in (401, 403) and "invalid_api_key" in text:
+            return "invalid", ""
+        # Any other refusal (unknown probe model, key limited to specific
+        # models, rate limit) says nothing bad about the key itself.
+    except urllib.error.URLError:
+        pass
+    return "ok", ""
+
+
+def _guide_first_timer(interactive: bool) -> None:
+    print("\nNo problem. There are three short steps, all on OpenAI's website.\n")
+
+    print(_paint("Step 1 of 3: create an OpenAI account", "bold"))
+    print("  If you already log in to ChatGPT, use that same account and skip ahead.")
+    print("  Sign up or log in here:")
+    _open_page(SIGNUP_URL, interactive)
+    if interactive:
+        _ask("  Press Enter when you are logged in... ")
+
+    print("\n" + _paint("Step 2 of 3: add 5 dollars of credit", "bold"))
+    print(
+        "  The transcription service is prepaid, like a phone card. 5 dollars is\n"
+        "  the minimum and covers roughly five hours of video. On the page below:\n"
+        "    1. Click 'Add payment method' and enter your card details.\n"
+        "    2. Click 'Add to credit balance' and choose 5 dollars.\n"
+        "    3. If it offers 'auto-reload' (topping up automatically), you can\n"
+        "       switch that off.\n"
+        "  The page:"
+    )
+    _open_page(BILLING_URL, interactive)
+    if interactive:
+        _ask("  Press Enter when your balance shows the credit... ")
+
+    print("\n" + _paint("Step 3 of 3: create your key", "bold"))
+    print(
+        "  On the page below, click 'Create new secret key', type any name you\n"
+        "  like (for example: subthis), and click 'Create secret key'. Then click\n"
+        "  'Copy'. Important: the key is shown only this once, so copy it now.\n"
+        "  The page:"
+    )
+    _open_page(API_KEYS_URL, interactive)
+
+
+def _prompt_for_working_key(existing_key: str, interactive: bool) -> str:
+    attempts = 5 if interactive else 1
+    for _ in range(attempts):
+        if existing_key:
+            entered = _ask(
+                "\nPaste your OpenAI key and press Enter"
+                " (or press Enter alone to keep the saved one): "
+            )
+        else:
+            entered = _ask("\nPaste your OpenAI key here and press Enter: ")
+        api_key = (entered or existing_key).strip().strip("\"'")
+        if not api_key:
+            _say_bad(f"Nothing was entered. Your key is waiting at {API_KEYS_URL}")
+            continue
+        print("  Checking your key with OpenAI...")
+        status, detail = _classify_key(api_key)
+        if status == "ok":
+            _say_ok("The key works and your account has credit.")
+            return api_key
+        if status == "invalid":
+            _say_bad(
+                "OpenAI does not accept this key. It may be mistyped, expired,\n"
+                "    or revoked. Copy a fresh one from:"
+            )
+            _open_page(API_KEYS_URL, interactive)
+            existing_key = ""
+            continue
+        if status == "no_credit":
+            _say_bad("The key itself works, but the account behind it has no credit yet.")
+            print("    Add at least 5 dollars here:")
+            _open_page(BILLING_URL, interactive)
+            if not interactive:
+                raise SubthisError(f"The OpenAI account has no credit. Add credit at {BILLING_URL}")
+            _ask("    Press Enter after adding credit and it will be checked again... ")
+            existing_key = api_key
+            continue
+        _say_note(
+            f"Could not reach OpenAI to test the key ({detail}).\n"
+            "    Saving it anyway. subthis will say so clearly if it turns out not to work."
+        )
+        return api_key
+    raise SubthisError("No working OpenAI key was entered. Run 'subthis setup' to try again.")
 
 
 def _write_env_file(api_key: str) -> None:
@@ -532,63 +703,87 @@ def _write_env_file(api_key: str) -> None:
         os.chmod(ENV_FILE, 0o600)
 
 
+def _example_command() -> str:
+    if sys.platform == "win32":
+        return r"subthis C:\Users\you\Videos\lesson.mp4"
+    if sys.platform == "darwin":
+        return "subthis ~/Movies/lesson.mp4"
+    return "subthis ~/Videos/lesson.mp4"
+
+
 def run_setup() -> int:
-    print(f"subthis {__version__} setup\n")
+    global _COLOR
+    interactive = sys.stdin is not None and sys.stdin.isatty()
+    _COLOR = (
+        not os.environ.get("NO_COLOR")
+        and sys.stdout is not None
+        and sys.stdout.isatty()
+    )
+    if _COLOR and sys.platform == "win32":
+        os.system("")  # flips older Windows consoles into ANSI color mode
+
+    _banner(f"Welcome to subthis  ·  v{__version__}")
+    print(
+        "\nsubthis turns a video into subtitles. This one-time setup takes about\n"
+        "two minutes. Nothing on your computer is changed except subthis's own\n"
+        f"settings folder: {CONFIG_DIR}\n"
+    )
 
     if shutil.which("ffmpeg") and shutil.which("ffprobe"):
-        print("ffmpeg: found")
+        _say_ok("ffmpeg is installed (subthis uses it to read the sound from your videos)")
     else:
-        print("ffmpeg: NOT FOUND — subthis needs ffmpeg and ffprobe to read video.")
-        print(f"        To install: {_ffmpeg_install_hint()}")
+        _say_note("A helper program called ffmpeg is missing. It reads the sound from videos.")
+        print(f"    To install it: {_ffmpeg_install_hint()}")
+        print("    Then run 'subthis setup' again.")
+
+    print(
+        "\nsubthis sends your video's audio to OpenAI (the company behind ChatGPT)\n"
+        "to turn the speech into text. For that you need your own OpenAI key:\n"
+        "a long code starting with sk- that acts like a password. It is saved\n"
+        "only on this computer.\n"
+    )
 
     existing_key = ""
     with contextlib.suppress(SubthisError):
         existing_key = _load_api_key()
-    prompt = (
-        "OpenAI API key (Enter keeps the saved key): "
-        if existing_key
-        else "OpenAI API key: "
-    )
-    try:
-        if sys.stdin is None:
-            entered = ""
-        elif not sys.stdin.isatty():
-            # Piped input: Windows getpass reads the console device and would
-            # hang forever, so read stdin directly on every platform.
-            print(prompt, end="", flush=True)
-            entered = sys.stdin.readline().strip()
-        else:
-            entered = getpass.getpass(prompt).strip()
-    except EOFError:
-        entered = ""
-    api_key = entered or existing_key
-    if not api_key:
-        raise SubthisError("No API key entered. Get one at https://platform.openai.com/api-keys")
-
-    warning = _verify_api_key(api_key)
-    if warning:
-        print(f"Warning: {warning}", file=sys.stderr)
+    if existing_key:
+        _say_ok("A key is already saved. Press Enter at the prompt below to keep it.")
     else:
-        print("API key verified with OpenAI.")
+        answer = _ask("Have you used the OpenAI API before? Type y (yes) or n (no): ").lower()
+        if answer.startswith("n"):
+            _guide_first_timer(interactive)
+        else:
+            print("\nCopy a key from OpenAI's key page:")
+            _open_page(API_KEYS_URL, interactive)
 
+    api_key = _prompt_for_working_key(existing_key, interactive)
     _write_env_file(api_key)
-    print(f"Saved API key to {ENV_FILE}")
+    _say_ok(f"Key saved to {ENV_FILE}")
 
     if not TERMS_FILE.exists():
         TERMS_FILE.write_text(TERMS_TEMPLATE, encoding="utf-8")
-        print(f"Created terms file at {TERMS_FILE}")
+        _say_ok(f"Created a terms file at {TERMS_FILE}")
+        print("    (optional: list names and jargon there and subthis will spell them right)")
     else:
-        print(f"Keeping existing terms file at {TERMS_FILE}")
+        _say_ok(f"Keeping your existing terms file at {TERMS_FILE}")
 
     if shutil.which("subthis") is None:
-        print(
-            "\nNote: the 'subthis' command is not on your PATH yet. To fix:\n"
-            "  installed with uv:   uv tool update-shell\n"
-            "  installed with pipx: pipx ensurepath\n"
-            "then open a new terminal.",
-            file=sys.stderr,
+        _say_note(
+            "The 'subthis' command is not reachable from new terminals yet. To fix:\n"
+            "    installed with uv:   run  uv tool update-shell\n"
+            "    installed with pipx: run  pipx ensurepath\n"
+            "    then open a new terminal window."
         )
-    print("\nSetup complete. Try: subthis video.mp4")
+
+    print()
+    _banner("You're all set!")
+    print(
+        "\nTo make subtitles, type subthis, a space, and then your video file:\n"
+        f"    {_paint(_example_command(), 'bold')}\n"
+        "Tip: type \"subthis \" and drag the video from your files into this\n"
+        "window, then press Enter. The subtitles are saved as an .srt file\n"
+        "next to the video.\n"
+    )
     return 0
 
 

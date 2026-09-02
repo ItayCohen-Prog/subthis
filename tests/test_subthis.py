@@ -180,6 +180,53 @@ class HelpTests(unittest.TestCase):
                 self.assertNotIn(text, epilog, platform)
 
 
+class ApiErrorMessageTests(unittest.TestCase):
+    def test_401_names_a_revoked_key_and_points_at_setup(self) -> None:
+        message = subthis._api_error_message(b'{"error":{"message":"bad"}}', 401)
+
+        self.assertIn("revoked", message)
+        self.assertIn("subthis setup", message)
+        self.assertIn(subthis.API_KEYS_URL, message)
+
+    def test_insufficient_quota_points_at_billing(self) -> None:
+        payload = b'{"error":{"message":"...","code":"insufficient_quota"}}'
+
+        message = subthis._api_error_message(payload, 429)
+
+        self.assertIn("out of credit", message)
+        self.assertIn(subthis.BILLING_URL, message)
+
+    def test_other_errors_keep_the_api_message(self) -> None:
+        message = subthis._api_error_message(b'{"error":{"message":"boom"}}', 500)
+
+        self.assertIn("boom", message)
+
+
+class PromptForKeyTests(unittest.TestCase):
+    def test_rejects_invalid_key_then_accepts_a_working_one(self) -> None:
+        with mock.patch.object(
+            subthis, "_classify_key", side_effect=[("invalid", ""), ("ok", "")]
+        ), mock.patch.object(subthis, "_ask", side_effect=["sk-bad", "sk-good"]), mock.patch.object(
+            subthis, "_open_page"
+        ):
+            self.assertEqual(subthis._prompt_for_working_key("", True), "sk-good")
+
+    def test_gives_up_without_a_key_when_not_interactive(self) -> None:
+        with mock.patch.object(subthis, "_ask", return_value=""):
+            with self.assertRaises(subthis.SubthisError):
+                subthis._prompt_for_working_key("", False)
+
+    def test_no_credit_aborts_when_not_interactive(self) -> None:
+        with mock.patch.object(
+            subthis, "_classify_key", return_value=("no_credit", "")
+        ), mock.patch.object(subthis, "_ask", return_value="sk-real"), mock.patch.object(
+            subthis, "_open_page"
+        ):
+            with self.assertRaises(subthis.SubthisError) as caught:
+                subthis._prompt_for_working_key("", False)
+        self.assertIn(subthis.BILLING_URL, str(caught.exception))
+
+
 class SetupDispatchTests(unittest.TestCase):
     def test_setup_rejects_extra_arguments(self) -> None:
         with self.assertRaises(subthis.SubthisError):
