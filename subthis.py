@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.8.0"
+__version__ = "1.8.1"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -65,7 +65,7 @@ CHUNK_OVERLAP_SECONDS = 1.5
 SHORT_TAIL_SECONDS = 120        # a leftover this short joins the previous chunk instead
 PAUSE_SPLIT_SECONDS = 0.5   # stable-ts split_by_gap default
 CUE_HANG_SECONDS = 0.5      # Netflix: out-time at least half a second past the audio
-CUE_GAP_SECONDS = 0.08      # Netflix minimum gap: 2 frames at 24fps
+CUE_GAP_SECONDS = 0.0       # gap kept between consecutive cues (Netflix suggests 2 frames)
 MIN_CUE_SECONDS = 5 / 6     # Netflix minimum event duration: 20 frames at 24fps
 
 
@@ -131,6 +131,7 @@ CAPTION_DEFAULTS: dict[str, object] = {
     "pause": PAUSE_SPLIT_SECONDS,     # silence that starts a new line
     "hang": CUE_HANG_SECONDS,         # how long a line outlives its last word
     "min": MIN_CUE_SECONDS,           # minimum time a line stays on screen
+    "gap": CUE_GAP_SECONDS,           # empty space kept between one line and the next
     "punctuation": "remove",          # remove | keep
     "silence": "cut",                 # cut | hold (hold = line stays up through silences)
 }
@@ -146,6 +147,7 @@ class Config:
     pause_split: float = PAUSE_SPLIT_SECONDS
     cue_hang: float = CUE_HANG_SECONDS
     min_cue: float = MIN_CUE_SECONDS
+    cue_gap: float = CUE_GAP_SECONDS
     hold_through_silence: bool = False
     keep_punctuation: bool = False
 
@@ -320,6 +322,7 @@ def make_cues(
     pause_split: float = PAUSE_SPLIT_SECONDS,
     hang: float = CUE_HANG_SECONDS,
     min_cue: float = MIN_CUE_SECONDS,
+    gap: float = CUE_GAP_SECONDS,
     hold_through_silence: bool = False,
     keep_punctuation: bool = False,
 ) -> list[Cue]:
@@ -353,7 +356,7 @@ def make_cues(
     for index, group in enumerate(groups):
         start = group[0].start
         next_start = groups[index + 1][0].start if index + 1 < len(groups) else media_end
-        latest_allowed = max(next_start - CUE_GAP_SECONDS, start + 0.001)
+        latest_allowed = max(next_start - gap, start + 0.001)
         if hold_through_silence:
             end = min(latest_allowed, media_end)
         else:
@@ -1281,7 +1284,7 @@ def _caption_settings() -> dict[str, object]:
         merged["words"] = min(3, max(1, int(merged["words"])))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         merged["words"] = CAPTION_DEFAULTS["words"]
-    for name, floor in (("pause", 0.05), ("hang", 0.0), ("min", 0.0)):
+    for name, floor in (("pause", 0.05), ("hang", 0.0), ("min", 0.0), ("gap", 0.0)):
         try:
             number = float(str(merged[name]).replace(",", "."))
             merged[name] = min(10.0, max(floor, number))
@@ -1299,6 +1302,7 @@ _CAPTION_HELP: dict[str, str] = {
     "pause": "a silence this long (seconds) starts a new line",
     "hang": "how long a line stays after its last word (seconds)",
     "min": "minimum time a line stays on screen (seconds)",
+    "gap": "empty space kept between one line and the next (seconds)",
     "punctuation": "'remove' cleans captions, 'keep' leaves punctuation in",
     "silence": "'cut' ends a line after the hang time, 'hold' keeps it up until the next line",
 }
@@ -1326,7 +1330,7 @@ def _config_captions(rest: Sequence[str]) -> int:
     if name not in CAPTION_DEFAULTS:
         raise SubthisError(
             "Unknown caption setting: " + name + "\n"
-            "Settings: words, pause, hang, min, punctuation, silence (or reset)."
+            "Settings: words, pause, hang, min, gap, punctuation, silence (or reset)."
         )
     if len(rest) < 2:
         value = current[name]
@@ -1343,7 +1347,7 @@ def _config_captions(rest: Sequence[str]) -> int:
             raise SubthisError("words must be 1, 2 or 3.") from None
         if value not in (1, 2, 3):
             raise SubthisError("words must be 1, 2 or 3.")
-    elif name in ("pause", "hang", "min"):
+    elif name in ("pause", "hang", "min", "gap"):
         try:
             value = float(raw.replace(",", "."))  # 0,5 is how half of Europe types it
         except ValueError:
@@ -1847,6 +1851,7 @@ def transcribe_video(video: Path, config: Config) -> tuple[list[Cue], float]:
             pause_split=config.pause_split,
             hang=config.cue_hang,
             min_cue=config.min_cue,
+            gap=config.cue_gap,
             hold_through_silence=config.hold_through_silence,
             keep_punctuation=config.keep_punctuation,
         )
@@ -2048,6 +2053,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         pause_split=float(captions["pause"]),
         cue_hang=float(captions["hang"]),
         min_cue=float(captions["min"]),
+        cue_gap=float(captions["gap"]),
         hold_through_silence=captions["silence"] == "hold",
         keep_punctuation=captions["punctuation"] == "keep",
     )

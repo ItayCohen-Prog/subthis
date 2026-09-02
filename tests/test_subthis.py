@@ -95,7 +95,7 @@ class CueTests(unittest.TestCase):
         # into 2+2 instead of leaving a lone orphan word
         self.assertEqual([cue.text for cue in cues], ["אחד שתיים שלוש", "ארבע חמש", "שש שבע"])
         self.assertAlmostEqual(cues[0].end, 1.3)  # hang cap, not lingering to 3.0
-        self.assertAlmostEqual(cues[1].end, 3.47)
+        self.assertAlmostEqual(cues[1].end, 3.55)  # runs right up to the next cue
         self.assertAlmostEqual(cues[2].end, 4.8)
         self.assertTrue(all(len(cue.text.split()) <= 3 for cue in cues))
 
@@ -153,7 +153,14 @@ class CaptionSettingsTests(unittest.TestCase):
 
         cues = subthis.make_cues(words, media_end=10.0, hold_through_silence=True)
 
-        self.assertAlmostEqual(cues[0].end, 5.0 - subthis.CUE_GAP_SECONDS)
+        self.assertAlmostEqual(cues[0].end, 5.0)  # default gap is zero
+
+    def test_gap_setting_keeps_space_before_the_next_cue(self) -> None:
+        words = [subthis.TimedWord("א", 0.0, 0.4), subthis.TimedWord("ב", 0.5, 0.9)]
+
+        cues = subthis.make_cues(words, media_end=5.0, max_words=1, gap=0.1)
+
+        self.assertAlmostEqual(cues[0].end, 0.4)  # 0.5 - 0.1 gap, below the hang cap
 
     def test_keep_punctuation_passes_it_through_to_the_srt(self) -> None:
         words = [subthis.TimedWord("שלום,", 0.0, 0.5), subthis.TimedWord("OpenAI!", 0.6, 1.1)]

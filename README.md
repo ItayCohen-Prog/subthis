@@ -88,7 +88,7 @@ subthis config captions words 2    # example: two words per line from now on
 subthis config captions reset      # back to the defaults
 ```
 
-Settings (defaults follow subtitle-industry standards): `words` per line (1-3), `pause` (a silence this long starts a new line), `hang` (how long a line outlives its last word), `min` (minimum time on screen, all in seconds), `punctuation keep|remove`, and `silence hold|cut` (hold keeps a line on screen through silences). Saved values apply to every future video; `--max-words` still overrides `words` for a single run.
+Settings (defaults follow subtitle-industry standards): `words` per line (1-3), `pause` (a silence this long starts a new line), `hang` (how long a line outlives its last word), `min` (minimum time on screen), `gap` (empty space before the next line, default 0; all in seconds), `punctuation keep|remove`, and `silence hold|cut` (hold keeps a line on screen through silences). Saved values apply to every future video; `--max-words` still overrides `words` for a single run.
 
 ## Finding your finished file
 
