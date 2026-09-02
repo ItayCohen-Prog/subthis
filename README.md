@@ -1,5 +1,7 @@
 # subthis
 
+Website and docs: https://subthis.webivize.com (English and Hebrew)
+
 Turns a video (or audio file) into an SRT subtitle file with short, accurately worded captions, at most three words per cue. Built for Hebrew with English tech terms mixed in: it transcribes twice through the OpenAI API (`gpt-transcribe` for wording, `whisper-1` for word timing), aligns the two, and canonicalizes product names like OpenAI, Claude and ChatGPT.
 
 Works on Linux, macOS and Windows. No Python dependencies outside the standard library.

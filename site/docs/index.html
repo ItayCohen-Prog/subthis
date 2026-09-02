@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>subthis docs — install, setup, and every command</title>
+<meta name="description" content="Complete documentation for subthis: installation on Windows, macOS and Linux, guided setup, teaching terms, config commands, updates, troubleshooting, and a full CLI reference.">
+<link rel="alternate" hreflang="he" href="https://subthis.webivize.com/he/docs/">
+<link rel="alternate" hreflang="en" href="https://subthis.webivize.com/docs/">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="/"><span class="cap">אב</span>subthis</a>
+    <nav class="site-nav" aria-label="Site">
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
+      <a href="https://pypi.org/project/subthis/">PyPI</a>
+      <div class="lang-switch" aria-label="Language">
+        <a class="active" href="/docs/" aria-current="true">EN</a>
+        <a href="/he/docs/" lang="he">עב</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+  <nav class="toc" aria-label="Contents">
+    <ol>
+      <li><a href="#install"><span class="toc-num">1</span>Install</a></li>
+      <li><a href="#setup"><span class="toc-num">2</span>Setup</a></li>
+      <li><a href="#use"><span class="toc-num">3</span>Make subtitles</a></li>
+      <li><a href="#terms"><span class="toc-num">4</span>Teach it terms</a></li>
+      <li><a href="#config"><span class="toc-num">5</span>Config</a></li>
+      <li><a href="#updates"><span class="toc-num">6</span>Updates</a></li>
+      <li><a href="#troubleshooting"><span class="toc-num">7</span>Troubleshooting</a></li>
+      <li><a href="#reference"><span class="toc-num">8</span>CLI reference</a></li>
+      <li><a href="#agents"><span class="toc-num">9</span>For AI agents</a></li>
+    </ol>
+  </nav>
+
+  <article class="doc-body">
+    <h1>subthis documentation</h1>
+    <p class="lede">subthis turns a video (or audio file) into an SRT subtitle file with short, accurately worded captions, at most three words per cue. It is built for Hebrew speech with English names and jargon mixed in. A machine-readable copy of these docs lives at <a href="/docs.md">/docs.md</a> and <a href="/llms.txt">/llms.txt</a>.</p>
+
+    <section id="install">
+      <h2>1. Install</h2>
+      <p>subthis needs two things on your computer: <strong>uv</strong> (which installs subthis and Python itself) and <strong>ffmpeg</strong> (which reads the audio out of video files). Both are one command per OS.</p>
+      <h3>Windows (PowerShell)</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+winget install ffmpeg
+uv tool install subthis</pre><button class="copy-btn" data-done="copied">copy</button></div>
+      <p>Open a new PowerShell window after installing uv so the command is found.</p>
+      <h3>macOS (Terminal)</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh
+brew install ffmpeg
+uv tool install subthis</pre><button class="copy-btn" data-done="copied">copy</button></div>
+      <p>If Homebrew is missing, install it first from <a href="https://brew.sh">brew.sh</a>.</p>
+      <h3>Linux</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh
+sudo apt install ffmpeg   # or dnf / pacman, per your distribution
+uv tool install subthis</pre><button class="copy-btn" data-done="copied">copy</button></div>
+      <div class="callout">If <code>subthis</code> is not found after installing, run <code>uv tool update-shell</code> (or <code>pipx ensurepath</code> if you used pipx) and open a new terminal.</div>
+    </section>
+
+    <section id="setup">
+      <h2>2. Setup</h2>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis setup</pre><button class="copy-btn" data-done="copied">copy</button></div>
+      <p>Setup is a guided, one-time wizard. It:</p>
+      <ul>
+        <li>checks that ffmpeg is installed, and tells you how to install it if not;</li>
+        <li>asks whether you have used the OpenAI API before — answer <strong>no</strong> and it walks you through creating an account, adding 5 dollars of prepaid credit (the minimum; it covers roughly five hours of video), and creating a key, opening each page in your browser;</li>
+        <li>tests the key you paste immediately: an invalid or revoked key re-prompts, an account with no credit gets the billing link and a re-check;</li>
+        <li>saves the key to subthis's own settings folder (<code>~/.config/subthis</code> on Linux and macOS, <code>%APPDATA%\subthis</code> on Windows) and nowhere else.</li>
+      </ul>
+      <p>An <code>OPENAI_API_KEY</code> environment variable, if set, overrides the stored key.</p>
+    </section>
+
+    <section id="use">
+      <h2>3. Make subtitles</h2>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis lecture.mp4</pre><button class="copy-btn" data-done="copied">copy</button></div>
+      <p>That writes <code>lecture.srt</code> next to the video and prints the full path when done. Tip for the terminal-shy: type <code>subthis&nbsp;</code> then drag the video file into the terminal window and press Enter.</p>
+      <h3>Options</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis talk.mp4 -o subs/talk.srt      # choose the output path
+subthis clip.mp4 --max-words 2         # shorter cues (1, 2 or 3)
+subthis clip.mp4 --language he --language en   # expected languages
+subthis clip.mp4 --force               # overwrite an existing .srt</pre><button class="copy-btn" data-done="copied">copy</button></div>
+      <p>Long videos are split into chunks, transcribed, and merged automatically. Each chunk goes to OpenAI twice: <code>gpt-transcribe</code> for the most accurate wording and <code>whisper-1</code> for word-level timing; subthis aligns the two so accurate words carry precise timestamps.</p>
+    </section>
+
+    <section id="terms">
+      <h2>4. Teach it terms</h2>
+      <p>Terms are names and jargon subthis should spell correctly (and keep in English inside Hebrew speech). The syntax is the same everywhere: <strong>spaces separate terms, single quotes group a multi-word term</strong>.</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis clip.mp4 --term "Omarchy 'Wispr Flow'"    # this run only
+subthis config terms "Omarchy 'Wispr Flow'"       # saved, every video
+subthis config terms                               # interactive editor</pre><button class="copy-btn" data-done="copied">copy</button></div>
+      <p>The interactive editor lists your saved terms with a key guide at the bottom: arrows move, space selects, <code>m</code> marks or unmarks all, <code>r</code> removes the selected terms after a confirmation, <code>a</code> adds new ones, <code>q</code> saves and quits.</p>
+      <h3>Per-folder terms</h3>
+      <p>Put a file named <code>subthis-terms.txt</code> next to your videos and it is picked up automatically for any video in that folder. One term per line; spelling corrections use aliases:</p>
+      <pre class="code" dir="ltr">MyCompany
+DaVinci Resolve = דה וינצ'י ריזולב | Davinci Resolve</pre>
+    </section>
+
+    <section id="config">
+      <h2>5. Config</h2>
+      <table>
+        <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td dir="ltr"><code>subthis config key</code></td><td>Replace the saved OpenAI key. The new key is verified (validity and credit) before saving, exactly like in setup. Keys are never accepted as command-line arguments.</td></tr>
+          <tr><td dir="ltr"><code>subthis config terms</code></td><td>Open the interactive terms editor; with a quoted string argument, append terms directly.</td></tr>
+          <tr><td dir="ltr"><code>subthis config open on</code></td><td>After finishing, also open your file manager with the subtitle file selected (Explorer, Finder, or the Linux FileManager1 interface). <code>off</code> turns it back off.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="updates">
+      <h2>6. Updates</h2>
+      <p>At the start of an interactive run, subthis checks PyPI (three-second budget, silent when offline). If a newer version exists it asks once. Answer yes and it updates itself and reruns your exact command; answer no and it prints the command to update later:</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">uv tool upgrade subthis</pre><button class="copy-btn" data-done="copied">copy</button></div>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>7. Troubleshooting</h2>
+      <h3>"subthis: command not found" after installing</h3>
+      <p>Run <code>uv tool update-shell</code> (or <code>pipx ensurepath</code>), then open a new terminal window.</p>
+      <h3>"OpenAI no longer accepts your saved key"</h3>
+      <p>The key was revoked or deleted. Run <code>subthis config key</code> and paste a fresh key from <a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a>.</p>
+      <h3>"Your OpenAI account is out of credit"</h3>
+      <p>Add credit at <a href="https://platform.openai.com/settings/organization/billing/overview">the billing page</a> (5 dollars minimum) and run subthis again.</p>
+      <h3>"Required command not found: ffmpeg"</h3>
+      <p>Install ffmpeg for your OS (see <a href="#install">Install</a>), then rerun. <code>subthis setup</code> prints the exact command for your system.</p>
+      <h3>"The video may have no audio track"</h3>
+      <p>The file has no sound to transcribe. Check it plays with audio in a media player.</p>
+    </section>
+
+    <section id="reference">
+      <h2>8. CLI reference</h2>
+      <table>
+        <thead><tr><th>Command / flag</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td dir="ltr"><code>subthis &lt;video&gt;</code></td><td>Transcribe a video or audio file to <code>&lt;video&gt;.srt</code>.</td></tr>
+          <tr><td dir="ltr"><code>subthis setup</code></td><td>Guided one-time setup: ffmpeg check, OpenAI key with live validation.</td></tr>
+          <tr><td dir="ltr"><code>subthis config key|terms|open</code></td><td>Change the key, edit saved terms, toggle open-folder-when-done.</td></tr>
+          <tr><td dir="ltr"><code>subthis help</code> / <code>subthis</code></td><td>Full help with an OS-specific quick start.</td></tr>
+          <tr><td dir="ltr"><code>subthis docs</code></td><td>Open this documentation in the browser.</td></tr>
+          <tr><td dir="ltr"><code>-o, --output PATH</code></td><td>Output SRT path (default: next to the input).</td></tr>
+          <tr><td dir="ltr"><code>--max-words {1,2,3}</code></td><td>Maximum words per cue. Default 3.</td></tr>
+          <tr><td dir="ltr"><code>--term "A 'B C'"</code></td><td>Extra terms for this run; single quotes group multi-word terms. Repeatable.</td></tr>
+          <tr><td dir="ltr"><code>--terms-file PATH</code></td><td>Alternative global terms file.</td></tr>
+          <tr><td dir="ltr"><code>--language XX</code></td><td>Expected ISO-639-1 language; repeat for code-switching. Default: he, en.</td></tr>
+          <tr><td dir="ltr"><code>--force</code></td><td>Overwrite an existing subtitle file.</td></tr>
+          <tr><td dir="ltr"><code>--version</code></td><td>Print the version.</td></tr>
+        </tbody>
+      </table>
+      <p>Exit codes: <code>0</code> success, <code>1</code> a handled error (message on stderr, prefixed <code>subthis:</code>), <code>130</code> cancelled with Ctrl+C.</p>
+    </section>
+
+    <section id="agents">
+      <h2>9. For AI agents</h2>
+      <p>If you are an AI agent operating a computer for a user: subthis is non-interactive-safe. Piped stdin disables all prompts, colors, and browser openings; the update check is skipped when stdin is not a TTY, and can be disabled explicitly with <code>SUBTHIS_SKIP_UPDATE=1</code>. The canonical machine-readable summary is at <a href="/llms.txt">https://subthis.webivize.com/llms.txt</a>, and the full docs as markdown at <a href="/docs.md">https://subthis.webivize.com/docs.md</a>.</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr"># minimal agent flow
+uv tool install subthis
+OPENAI_API_KEY=sk-... subthis input.mp4 -o output.srt --force
+# stdout ends with the absolute path of the written file</pre><button class="copy-btn" data-done="copied">copy</button></div>
+    </section>
+  </article>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>subthis · MIT license</span>
+    <a href="/">Home</a>
+    <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
+    <a href="https://pypi.org/project/subthis/">PyPI</a>
+    <span class="spacer"></span>
+    <a href="/llms.txt">llms.txt</a>
+  </div>
+</footer>
+
+<script src="/assets/site.js"></script>
+</body>
+</html>

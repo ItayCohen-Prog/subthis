@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תיעוד subthis — התקנה, הגדרה וכל הפקודות</title>
+<meta name="description" content="תיעוד מלא של subthis: התקנה על Windows, macOS ו‑Linux, הגדרה מודרכת, לימוד מונחים, פקודות config, עדכונים, פתרון תקלות ומדריך מלא לשורת הפקודה.">
+<link rel="alternate" hreflang="en" href="https://subthis.webivize.com/docs/">
+<link rel="alternate" hreflang="he" href="https://subthis.webivize.com/he/docs/">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="/he/"><span class="cap">אב</span>subthis</a>
+    <nav class="site-nav" aria-label="ניווט">
+      <a href="/he/docs/" aria-current="page">תיעוד</a>
+      <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
+      <a href="https://pypi.org/project/subthis/">PyPI</a>
+      <div class="lang-switch" aria-label="שפה">
+        <a href="/docs/" lang="en">EN</a>
+        <a class="active" href="/he/docs/" aria-current="true">עב</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+  <nav class="toc" aria-label="תוכן">
+    <ol>
+      <li><a href="#install"><span class="toc-num">1</span>התקנה</a></li>
+      <li><a href="#setup"><span class="toc-num">2</span>הגדרה</a></li>
+      <li><a href="#use"><span class="toc-num">3</span>יצירת כתוביות</a></li>
+      <li><a href="#terms"><span class="toc-num">4</span>לימוד מונחים</a></li>
+      <li><a href="#config"><span class="toc-num">5</span>הגדרות</a></li>
+      <li><a href="#updates"><span class="toc-num">6</span>עדכונים</a></li>
+      <li><a href="#troubleshooting"><span class="toc-num">7</span>פתרון תקלות</a></li>
+      <li><a href="#reference"><span class="toc-num">8</span>מדריך פקודות</a></li>
+      <li><a href="#agents"><span class="toc-num">9</span>לסוכני AI</a></li>
+    </ol>
+  </nav>
+
+  <article class="doc-body">
+    <h1>התיעוד של subthis</h1>
+    <p class="lede">‫subthis הופך סרטון (או קובץ אודיו) לקובץ כתוביות SRT עם שורות קצרות ומנוסחות במדויק, עד שלוש מילים בשורה. בנוי לדיבור בעברית עם שמות ומונחים באנגלית. עותק קריא-מכונה של התיעוד נמצא ב‑<a href="/docs.md">‎/docs.md‎</a> וב‑<a href="/llms.txt">‎/llms.txt‎</a>.</p>
+
+    <section id="install">
+      <h2>1. התקנה</h2>
+      <p>‫subthis צריך שני דברים על המחשב: <strong>uv</strong> (שמתקין את subthis ואת פייתון עצמו) ו‑<strong>ffmpeg</strong> (שקורא את האודיו מקובצי וידאו). שניהם פקודה אחת לכל מערכת.</p>
+      <h3>Windows (PowerShell)</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+winget install ffmpeg
+uv tool install subthis</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+      <p>אחרי התקנת uv פתחו חלון PowerShell חדש כדי שהפקודה תזוהה.</p>
+      <h3>macOS (Terminal)</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh
+brew install ffmpeg
+uv tool install subthis</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+      <p>‏אם אין Homebrew, התקינו אותו קודם מ‑<a href="https://brew.sh">brew.sh</a>.</p>
+      <h3>Linux</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">curl -LsSf https://astral.sh/uv/install.sh | sh
+sudo apt install ffmpeg   # או dnf / pacman לפי ההפצה
+uv tool install subthis</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+      <div class="callout">אם אחרי ההתקנה הפקודה <code dir="ltr">subthis</code> לא נמצאת, הריצו <code dir="ltr">uv tool update-shell</code> (או <code dir="ltr">pipx ensurepath</code> אם התקנתם עם pipx) ופתחו טרמינל חדש.</div>
+    </section>
+
+    <section id="setup">
+      <h2>2. הגדרה</h2>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis setup</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+      <p>ההגדרה היא אשף מודרך חד-פעמי. הוא:</p>
+      <ul>
+        <li>בודק ש‑ffmpeg מותקן, ואם לא — אומר בדיוק איך להתקין;</li>
+        <li>שואל אם השתמשתם בעבר ב‑API של OpenAI — ענו <strong>לא</strong> והוא ילווה אתכם ביצירת חשבון, הוספת 5 דולר קרדיט (המינימום; מספיק לבערך חמש שעות וידאו) ויצירת מפתח, ופותח כל דף בדפדפן;</li>
+        <li>בודק את המפתח מיד: מפתח שגוי או מבוטל מבקש הקלדה מחדש, וחשבון בלי קרדיט מקבל קישור לדף החיוב ובדיקה חוזרת;</li>
+        <li>שומר את המפתח רק בתיקיית ההגדרות של subthis‏ (<code dir="ltr">‎~/.config/subthis</code> בלינוקס ומק, <code dir="ltr">%APPDATA%\subthis</code> בווינדוס).</li>
+      </ul>
+      <p>משתנה סביבה <code dir="ltr">OPENAI_API_KEY</code>, אם מוגדר, גובר על המפתח השמור.</p>
+    </section>
+
+    <section id="use">
+      <h2>3. יצירת כתוביות</h2>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis lecture.mp4</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+      <p>זה כותב <code dir="ltr">lecture.srt</code> ליד הסרטון ומדפיס בסוף את הנתיב המלא. טיפ: הקלידו <code dir="ltr">subthis&nbsp;</code> וגררו את קובץ הווידאו לתוך חלון הטרמינל, ואז Enter.</p>
+      <h3>אפשרויות</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis talk.mp4 -o subs/talk.srt      # לבחור נתיב פלט
+subthis clip.mp4 --max-words 2         # שורות קצרות יותר (1, 2 או 3)
+subthis clip.mp4 --language he --language en   # שפות צפויות
+subthis clip.mp4 --force               # לדרוס קובץ ‎.srt קיים</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+      <p>סרטונים ארוכים נחתכים, מתומללים וממוזגים אוטומטית. כל מקטע נשלח ל‑OpenAI פעמיים: <code dir="ltr">gpt-transcribe</code> לניסוח המדויק ו‑<code dir="ltr">whisper-1</code> לתזמון ברמת מילה; subthis מיישר בין השניים.</p>
+    </section>
+
+    <section id="terms">
+      <h2>4. לימוד מונחים</h2>
+      <p>מונחים הם שמות וביטויים ש‑subthis צריך לאיית נכון (ולהשאיר באנגלית בתוך דיבור עברי). התחביר זהה בכל מקום: <strong>רווחים מפרידים בין מונחים, גרש בודד מקבץ מונח מרובה מילים</strong>.</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis clip.mp4 --term "Omarchy 'Wispr Flow'"    # להרצה הזו בלבד
+subthis config terms "Omarchy 'Wispr Flow'"       # נשמר לכל הסרטונים
+subthis config terms                               # עורך אינטראקטיבי</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+      <p>העורך האינטראקטיבי מציג את המונחים השמורים עם מדריך מקשים בתחתית: חצים לתנועה, רווח לבחירה, <code dir="ltr">m</code> לסימון או ביטול של הכול, <code dir="ltr">r</code> להסרה עם אישור, <code dir="ltr">a</code> להוספה, <code dir="ltr">q</code> לשמירה ויציאה.</p>
+      <h3>מונחים לתיקייה</h3>
+      <p>שימו קובץ בשם <code dir="ltr">subthis-terms.txt</code> ליד הסרטונים והוא ייקלט אוטומטית לכל סרטון באותה תיקייה. מונח בכל שורה; תיקוני איות עם כינויים:</p>
+      <pre class="code" dir="ltr">MyCompany
+DaVinci Resolve = דה וינצ'י ריזולב | Davinci Resolve</pre>
+    </section>
+
+    <section id="config">
+      <h2>5. הגדרות</h2>
+      <table>
+        <thead><tr><th>פקודה</th><th>מה היא עושה</th></tr></thead>
+        <tbody>
+          <tr><td dir="ltr"><code>subthis config key</code></td><td>החלפת מפתח OpenAI השמור. המפתח החדש נבדק (תקינות וקרדיט) לפני השמירה, בדיוק כמו בהגדרה. מפתחות לעולם לא מתקבלים כארגומנט בשורת הפקודה.</td></tr>
+          <tr><td dir="ltr"><code>subthis config terms</code></td><td>פתיחת עורך המונחים; עם מחרוזת בגרשיים — הוספה ישירה.</td></tr>
+          <tr><td dir="ltr"><code>subthis config open on</code></td><td>בסיום, לפתוח גם את סייר הקבצים עם קובץ הכתוביות מסומן. <code dir="ltr">off</code> מכבה.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="updates">
+      <h2>6. עדכונים</h2>
+      <p>בתחילת הרצה אינטראקטיבית subthis בודק את PyPI (תקציב של שלוש שניות, שקט כשאין רשת). אם יש גרסה חדשה הוא שואל פעם אחת. ענו כן — והוא מתעדכן ומריץ מחדש בדיוק את הפקודה שלכם; ענו לא — והוא מדפיס את פקודת העדכון להמשך:</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">uv tool upgrade subthis</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>7. פתרון תקלות</h2>
+      <h3>‏"subthis: command not found" אחרי התקנה</h3>
+      <p>הריצו <code dir="ltr">uv tool update-shell</code> (או <code dir="ltr">pipx ensurepath</code>) ופתחו טרמינל חדש.</p>
+      <h3>‏"OpenAI no longer accepts your saved key"</h3>
+      <p>המפתח בוטל או נמחק. הריצו <code dir="ltr">subthis config key</code> והדביקו מפתח חדש מ‑<a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a>.</p>
+      <h3>‏"Your OpenAI account is out of credit"</h3>
+      <p>הוסיפו קרדיט ב<a href="https://platform.openai.com/settings/organization/billing/overview">דף החיוב</a> (מינימום 5 דולר) והריצו שוב.</p>
+      <h3>‏"Required command not found: ffmpeg"</h3>
+      <p>התקינו ffmpeg לפי המערכת שלכם (ראו <a href="#install">התקנה</a>). <code dir="ltr">subthis setup</code> מדפיס את הפקודה המדויקת למערכת שלכם.</p>
+      <h3>‏"The video may have no audio track"</h3>
+      <p>לקובץ אין סאונד לתמלל. בדקו שהוא מתנגן עם שמע בנגן מדיה.</p>
+    </section>
+
+    <section id="reference">
+      <h2>8. מדריך פקודות</h2>
+      <table>
+        <thead><tr><th>פקודה / דגל</th><th>משמעות</th></tr></thead>
+        <tbody>
+          <tr><td dir="ltr"><code>subthis &lt;video&gt;</code></td><td>תמלול קובץ וידאו או אודיו ל‑<code dir="ltr">&lt;video&gt;.srt</code>.</td></tr>
+          <tr><td dir="ltr"><code>subthis setup</code></td><td>הגדרה מודרכת חד-פעמית: בדיקת ffmpeg, מפתח OpenAI עם אימות חי.</td></tr>
+          <tr><td dir="ltr"><code>subthis config key|terms|open</code></td><td>החלפת מפתח, עריכת מונחים, פתיחת תיקייה בסיום.</td></tr>
+          <tr><td dir="ltr"><code>subthis help</code> / <code>subthis</code></td><td>עזרה מלאה עם התחלה מהירה לפי מערכת ההפעלה.</td></tr>
+          <tr><td dir="ltr"><code>subthis docs</code></td><td>פתיחת התיעוד הזה בדפדפן.</td></tr>
+          <tr><td dir="ltr"><code>-o, --output PATH</code></td><td>נתיב קובץ הפלט (ברירת מחדל: ליד הקלט).</td></tr>
+          <tr><td dir="ltr"><code>--max-words {1,2,3}</code></td><td>מקסימום מילים בשורה. ברירת מחדל 3.</td></tr>
+          <tr><td dir="ltr"><code>--term "A 'B C'"</code></td><td>מונחים להרצה הזו; גרש בודד מקבץ מונח מרובה מילים. ניתן לחזור על הדגל.</td></tr>
+          <tr><td dir="ltr"><code>--terms-file PATH</code></td><td>קובץ מונחים גלובלי חלופי.</td></tr>
+          <tr><td dir="ltr"><code>--language XX</code></td><td>שפה צפויה (ISO-639-1); חזרו על הדגל לשילוב שפות. ברירת מחדל: he, en.</td></tr>
+          <tr><td dir="ltr"><code>--force</code></td><td>דריסת קובץ כתוביות קיים.</td></tr>
+          <tr><td dir="ltr"><code>--version</code></td><td>הדפסת הגרסה.</td></tr>
+        </tbody>
+      </table>
+      <p>קודי יציאה: <code dir="ltr">0</code> הצלחה, <code dir="ltr">1</code> שגיאה מטופלת (הודעה ב‑stderr עם התחילית <code dir="ltr">subthis:</code>), <code dir="ltr">130</code> ביטול עם Ctrl+C.</p>
+    </section>
+
+    <section id="agents">
+      <h2>9. לסוכני AI</h2>
+      <p>אם אתם סוכן AI שמפעיל מחשב עבור משתמש: subthis בטוח להרצה לא-אינטראקטיבית. קלט מנותב (pipe) מכבה את כל השאלות, הצבעים ופתיחת הדפדפן; בדיקת העדכון מדולגת כשאין TTY, ואפשר לכבות אותה מפורשות עם <code dir="ltr">SUBTHIS_SKIP_UPDATE=1</code>. הסיכום הקריא-מכונה נמצא ב‑<a href="/llms.txt">llms.txt</a> והתיעוד המלא כ‑markdown ב‑<a href="/docs.md">docs.md</a>.</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr"># minimal agent flow
+uv tool install subthis
+OPENAI_API_KEY=sk-... subthis input.mp4 -o output.srt --force
+# stdout ends with the absolute path of the written file</pre><button class="copy-btn" data-done="הועתק">העתקה</button></div>
+    </section>
+  </article>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>subthis · רישיון MIT</span>
+    <a href="/he/">דף הבית</a>
+    <a href="https://github.com/ItayCohen-Prog/subthis">GitHub</a>
+    <a href="https://pypi.org/project/subthis/">PyPI</a>
+    <span class="spacer"></span>
+    <a href="/llms.txt">llms.txt</a>
+  </div>
+</footer>
+
+<script src="/assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# subthis
+
+> subthis is an open-source Python CLI that turns a video or audio file into an SRT subtitle file with short, accurately worded captions (at most 3 words per cue). Built for Hebrew speech with English names/jargon mixed in. It transcribes twice via the OpenAI API (gpt-transcribe for wording, whisper-1 for word timing), aligns the two, canonicalizes known terms, and writes a .srt next to the input.
+
+Key facts:
+- Install: `uv tool install subthis` (or `pipx install subthis`). Requires ffmpeg and ffprobe on PATH.
+- Auth: OpenAI API key via `subthis setup` (stored in the user config dir) or the OPENAI_API_KEY environment variable.
+- Non-interactive safe: piped stdin disables prompts, colors, and browser openings. Set SUBTHIS_SKIP_UPDATE=1 to disable the update check.
+- Main command: `subthis <video> [-o out.srt] [--max-words 1|2|3] [--term "A 'B C'"] [--language he --language en] [--force]`
+- On success, stdout ends with the absolute path of the written .srt file. Exit codes: 0 success, 1 handled error (stderr line prefixed "subthis:"), 130 cancelled.
+- Terms syntax: spaces separate terms, single quotes group multi-word terms. Per-folder terms: a subthis-terms.txt file next to the video. Global terms: `subthis config terms "..."`.
+- Other commands: `subthis setup` (guided key setup), `subthis config key` (replace key, validated), `subthis config terms` (interactive editor), `subthis config open on|off` (reveal file when done), `subthis docs` (open documentation).
+
+## Docs
+
+- [Full documentation (markdown)](https://subthis.webivize.com/docs.md): install, setup, usage, terms, config, updates, troubleshooting, CLI reference
+- [Documentation (HTML, English)](https://subthis.webivize.com/docs/)
+- [Documentation (HTML, Hebrew)](https://subthis.webivize.com/he/docs/)
+
+## Source
+
+- [GitHub repository](https://github.com/ItayCohen-Prog/subthis)
+- [PyPI package](https://pypi.org/project/subthis/)

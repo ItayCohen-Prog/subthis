@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -36,6 +36,7 @@ API_KEYS_URL = "https://platform.openai.com/api-keys"
 BILLING_URL = "https://platform.openai.com/settings/organization/billing/overview"
 SIGNUP_URL = "https://platform.openai.com/signup"
 PYPI_JSON_URL = "https://pypi.org/pypi/subthis/json"
+DOCS_URL = "https://subthis.webivize.com/docs/"
 PROJECT_TERMS_FILENAME = "subthis-terms.txt"
 
 
@@ -1218,6 +1219,7 @@ teaching subthis your special words (names, brands, jargon):
                       next to your videos, one term per line
 
 other commands:
+  subthis docs             open the full documentation in your browser
   subthis setup            first-time setup (API key, checks)
   subthis config key       replace your saved OpenAI key
   subthis config terms     review, add, and remove saved terms
@@ -1281,6 +1283,10 @@ def run(argv: Sequence[str] | None = None) -> int:
         return run_setup()
     if arguments[0] == "config":
         return run_config(arguments[1:])
+    if arguments[0] == "docs":
+        print("The subthis documentation lives at:")
+        _open_page(DOCS_URL, sys.stdin is not None and sys.stdin.isatty())
+        return 0
     args = build_parser().parse_args(arguments)
     video = args.video.expanduser().resolve()
     if not video.is_file():
