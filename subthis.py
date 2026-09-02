@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -580,6 +580,14 @@ def run_setup() -> int:
     else:
         print(f"Keeping existing terms file at {TERMS_FILE}")
 
+    if shutil.which("subthis") is None:
+        print(
+            "\nNote: the 'subthis' command is not on your PATH yet. To fix:\n"
+            "  installed with uv:   uv tool update-shell\n"
+            "  installed with pipx: pipx ensurepath\n"
+            "then open a new terminal.",
+            file=sys.stderr,
+        )
     print("\nSetup complete. Try: subthis video.mp4")
     return 0
 

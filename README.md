@@ -25,6 +25,8 @@ pipx install subthis
 
 Both pull [subthis from PyPI](https://pypi.org/project/subthis/) and put a `subthis` command on your PATH on any OS. To try it without installing: `uvx subthis video.mp4`.
 
+If the `subthis` command isn't found after installing, run `uv tool update-shell` (uv) or `pipx ensurepath` (pipx) and open a new terminal.
+
 ## Setup
 
 ```sh
