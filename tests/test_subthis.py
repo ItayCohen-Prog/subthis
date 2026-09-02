@@ -139,11 +139,15 @@ class ChunkMergeTests(unittest.TestCase):
 
 class ConfigDirTests(unittest.TestCase):
     def test_uses_xdg_config_home_when_set(self) -> None:
-        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": "/custom/config"}):
+        with mock.patch.object(subthis.sys, "platform", "linux"), mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": "/custom/config"}
+        ):
             self.assertEqual(subthis._config_dir(), Path("/custom/config/subthis"))
 
     def test_defaults_to_dot_config_without_xdg(self) -> None:
-        with mock.patch.dict(os.environ, {}, clear=True):
+        with mock.patch.object(subthis.sys, "platform", "linux"), mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": ""}
+        ):
             self.assertEqual(subthis._config_dir(), Path.home() / ".config" / "subthis")
 
     def test_uses_appdata_on_windows(self) -> None:
