@@ -53,9 +53,44 @@ DaVinci Resolve = דה וינצ'י ריזולב | Davinci Resolve
 subthis lecture.mp4                 # writes lecture.srt next to the input
 subthis talk.mp4 -o subs/talk.srt   # explicit output path
 subthis clip.mp4 --max-words 2      # shorter cues
-subthis clip.mp4 --term "Omarchy"   # one-off extra term
 subthis clip.mp4 --language he --language en
 ```
+
+## Teaching it your terms
+
+Terms are names and jargon subthis should spell correctly. Spaces separate terms; wrap a multi-word term in single quotes:
+
+```sh
+subthis clip.mp4 --term "Omarchy 'Wispr Flow'"   # this run only
+subthis config terms "Omarchy 'Wispr Flow'"      # every video, saved globally
+subthis config terms                             # interactive editor
+```
+
+Bare `subthis config terms` opens a keyboard-driven editor of your saved terms: arrows move, space selects, `m` marks or unmarks all, `r` removes the selected terms (with confirmation), `a` adds new ones, `q` saves and quits. The key guide stays at the bottom of the screen.
+
+For a folder of related videos, put a `subthis-terms.txt` file next to them (one term per line, or `Canonical = alias one | alias two` for spelling corrections); it is picked up automatically for any video in that folder.
+
+## Changing your key
+
+```sh
+subthis config key
+```
+
+Prompts for a new OpenAI key and verifies it (validity and account credit) before saving, same as setup.
+
+## Finding your finished file
+
+When subthis finishes it prints the full path of the subtitle file. With
+
+```sh
+subthis config open on
+```
+
+it also opens your file manager with that file selected (Explorer on Windows, Finder on macOS, and the FileManager1 interface on Linux desktops, falling back to opening the folder).
+
+## Updates
+
+When a newer version is on PyPI, subthis offers to update at the start of a run and then continues exactly where you were. Declining prints the command to update later.
 
 Long videos are chunked and merged automatically; uploads stay under OpenAI's 25 MB limit.
 

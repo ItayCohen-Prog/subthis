@@ -10,12 +10,14 @@ import difflib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import webbrowser
@@ -24,7 +26,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -33,6 +35,8 @@ QUOTA_PROBE_MODEL = "gpt-5-nano"
 API_KEYS_URL = "https://platform.openai.com/api-keys"
 BILLING_URL = "https://platform.openai.com/settings/organization/billing/overview"
 SIGNUP_URL = "https://platform.openai.com/signup"
+PYPI_JSON_URL = "https://pypi.org/pypi/subthis/json"
+PROJECT_TERMS_FILENAME = "subthis-terms.txt"
 
 
 def _config_dir() -> Path:
@@ -48,6 +52,7 @@ def _config_dir() -> Path:
 CONFIG_DIR = _config_dir()
 ENV_FILE = CONFIG_DIR / ".env"
 TERMS_FILE = CONFIG_DIR / "terms.txt"
+SETTINGS_FILE = CONFIG_DIR / "settings.json"
 ACCURATE_MODEL = "gpt-transcribe"
 TIMING_MODEL = "whisper-1"
 MAX_UPLOAD_BYTES = 24 * 1024 * 1024
@@ -566,6 +571,134 @@ def _open_page(url: str, interactive: bool) -> None:
             print(_paint("    (copy that address into your browser)", "dim"))
 
 
+def _init_color() -> None:
+    global _COLOR
+    _COLOR = (
+        not os.environ.get("NO_COLOR")
+        and sys.stdout is not None
+        and hasattr(sys.stdout, "isatty")
+        and sys.stdout.isatty()
+    )
+    if _COLOR and sys.platform == "win32":
+        os.system("")  # flips older Windows consoles into ANSI color mode
+
+
+def _version_tuple(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", text)[:3])
+
+
+def _latest_pypi_version() -> str | None:
+    request = urllib.request.Request(
+        PYPI_JSON_URL, headers={"User-Agent": f"subthis/{__version__}"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=3) as response:
+            version = json.loads(response.read()).get("info", {}).get("version")
+        return version if isinstance(version, str) else None
+    except Exception:
+        return None
+
+
+def _update_command() -> str:
+    executable = str(Path(sys.executable).resolve()).lower()
+    if "pipx" in executable:
+        return "pipx upgrade subthis"
+    return "uv tool upgrade subthis"
+
+
+def _maybe_offer_update(arguments: Sequence[str]) -> None:
+    if os.environ.get("SUBTHIS_SKIP_UPDATE") == "1":
+        return
+    if sys.stdin is None or not sys.stdin.isatty():
+        return
+    if sys.stdout is None or not sys.stdout.isatty():
+        return
+    latest = _latest_pypi_version()
+    if not latest or _version_tuple(latest) <= _version_tuple(__version__):
+        return
+    print(
+        _paint(f"A new version of subthis is out: {latest}", "cyan", "bold")
+        + f" (you have {__version__})."
+    )
+    answer = _ask("Update now? It takes a few seconds. Type y (yes) or n (no): ").lower()
+    if not answer.startswith("y"):
+        print("No problem. When you want it later, copy and run this command:")
+        print("    " + _paint(_update_command(), "bold") + "\n")
+        return
+    print("Updating...")
+    result = subprocess.run(
+        _update_command().split(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    fresh = shutil.which("subthis")
+    if result.returncode != 0 or fresh is None:
+        _say_note("The update did not finish, so this run continues on the current version.")
+        return
+    _say_ok("Updated. Continuing right where you were...\n")
+    environment = {**os.environ, "SUBTHIS_SKIP_UPDATE": "1"}
+    completed = subprocess.run([fresh, *arguments], env=environment)
+    raise SystemExit(completed.returncode)
+
+
+def _load_settings() -> dict:
+    try:
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_settings(settings: dict) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    SETTINGS_FILE.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+
+
+def _reveal_in_file_manager(path: Path) -> None:
+    """Best-effort: open the OS file manager with the file selected. Never raises.
+
+    explorer.exe exits 1 even on success and needs backslashes; Linux uses the
+    FileManager1 DBus interface (GNOME/KDE/Cinnamon/MATE) with a plain
+    directory open as fallback, matching what Electron and VS Code do.
+    """
+    try:
+        target = str(path.resolve())
+        if sys.platform == "win32":
+            subprocess.run(["explorer", "/select,", os.path.normpath(target)], timeout=10)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", "-R", target], timeout=10)
+        else:
+            uri = "file://" + urllib.parse.quote(target)
+            result = subprocess.run(
+                [
+                    "gdbus", "call", "--session",
+                    "--dest", "org.freedesktop.FileManager1",
+                    "--object-path", "/org/freedesktop/FileManager1",
+                    "--method", "org.freedesktop.FileManager1.ShowItems",
+                    f"['{uri}']", "",
+                ],
+                capture_output=True,
+                timeout=10,
+            )
+            has_display = os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+            if result.returncode != 0 and has_display and shutil.which("xdg-open"):
+                subprocess.run(
+                    ["xdg-open", str(path.parent)], capture_output=True, timeout=10
+                )
+    except Exception:
+        pass
+
+
+def _parse_term_string(text: str) -> list[str]:
+    try:
+        return [term for term in shlex.split(text) if term.strip()]
+    except ValueError as error:
+        raise SubthisError(
+            f"Could not read the terms ({error}). Check for an unclosed quote."
+        ) from error
+
+
 def _classify_key(api_key: str) -> tuple[str, str]:
     """Test a key against OpenAI. Returns one of: ok, invalid, no_credit, unreachable."""
     headers = {
@@ -703,6 +836,223 @@ def _write_env_file(api_key: str) -> None:
         os.chmod(ENV_FILE, 0o600)
 
 
+def run_config(rest: Sequence[str]) -> int:
+    interactive = sys.stdin is not None and sys.stdin.isatty()
+    if not rest or rest[0] not in ("key", "terms", "open"):
+        raise SubthisError(
+            "Usage:\n"
+            "  subthis config key     change your saved OpenAI key\n"
+            "  subthis config terms   review, add, and remove your saved terms\n"
+            "  subthis config terms \"term 'multi word term'\"   add terms directly\n"
+            "  subthis config open on|off   open the folder when subtitles are done"
+        )
+    if rest[0] == "open":
+        value = rest[1].lower() if len(rest) > 1 else ""
+        if value not in ("on", "off"):
+            state = "on" if _load_settings().get("open_when_done") else "off"
+            print(f"Opening the folder when done is currently: {state}")
+            print("Turn it on or off with: subthis config open on   (or off)")
+            return 0
+        settings = _load_settings()
+        settings["open_when_done"] = value == "on"
+        _save_settings(settings)
+        if value == "on":
+            _say_ok("subthis will now open the folder with your file when it finishes.")
+        else:
+            _say_ok("subthis will only print the file location when it finishes.")
+        return 0
+    if rest[0] == "key":
+        if len(rest) > 1:
+            raise SubthisError(
+                "For safety the key is not read from the command line.\n"
+                "Run 'subthis config key' and paste it at the prompt."
+            )
+        print("Let's replace your saved OpenAI key. Copy the new one from:")
+        _open_page(API_KEYS_URL, interactive)
+        api_key = _prompt_for_working_key("", interactive)
+        _write_env_file(api_key)
+        _say_ok(f"New key saved to {ENV_FILE}")
+        return 0
+
+    text = " ".join(rest[1:]).strip()
+    if not text:
+        if interactive:
+            return _terms_editor()
+        print(
+            "Type the terms to add, separated by spaces. Wrap a multi-word term\n"
+            "in single quotes, like this: OpenAI 'API Platform'"
+        )
+        text = _ask("Terms: ")
+    terms = _parse_term_string(text)
+    if not terms:
+        raise SubthisError("No terms were given.")
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    if not TERMS_FILE.exists():
+        TERMS_FILE.write_text(TERMS_TEMPLATE, encoding="utf-8")
+    with TERMS_FILE.open("a", encoding="utf-8") as handle:
+        for term in terms:
+            handle.write(term + "\n")
+    _say_ok(f"Added {len(terms)} term(s) to {TERMS_FILE}:")
+    for term in terms:
+        print("    " + term)
+    print("  These now apply to every video you transcribe.")
+    return 0
+
+
+def _read_key() -> str:
+    """Read one keypress without waiting for Enter, on any OS."""
+    if sys.platform == "win32":
+        import msvcrt
+
+        char = msvcrt.getwch()
+        if char in ("\x00", "\xe0"):
+            return {"H": "up", "P": "down"}.get(msvcrt.getwch(), "")
+        if char == "\r":
+            return "enter"
+        if char == "\x03":
+            raise KeyboardInterrupt
+        return char
+    import select
+    import termios
+    import tty
+
+    descriptor = sys.stdin.fileno()
+    saved = termios.tcgetattr(descriptor)
+    try:
+        tty.setcbreak(descriptor)
+        char = sys.stdin.read(1)
+        if char == "\x1b":
+            if select.select([sys.stdin], [], [], 0.05)[0]:
+                if sys.stdin.read(1) == "[" and select.select([sys.stdin], [], [], 0.05)[0]:
+                    return {"A": "up", "B": "down"}.get(sys.stdin.read(1), "")
+            return "esc"
+        if char in ("\r", "\n"):
+            return "enter"
+        return char
+    finally:
+        termios.tcsetattr(descriptor, termios.TCSADRAIN, saved)
+
+
+def _term_file_lines() -> list[str]:
+    if TERMS_FILE.is_file():
+        return TERMS_FILE.read_text(encoding="utf-8").splitlines()
+    return TERMS_TEMPLATE.splitlines()
+
+
+def _entry_indexes(lines: Sequence[str]) -> list[int]:
+    return [
+        index
+        for index, line in enumerate(lines)
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+
+def _draw_terms_screen(
+    lines: Sequence[str],
+    entries: Sequence[int],
+    cursor: int,
+    selected: set[int],
+    message: str,
+) -> None:
+    columns, rows = shutil.get_terminal_size()
+    output = ["\033[2J\033[H"]
+    output.append(_paint("Your saved terms", "cyan", "bold") + "\n")
+    output.append(
+        _paint("These apply to every video you transcribe.", "dim") + "\n\n"
+    )
+    body_rows = max(3, rows - 7)
+    top = max(0, min(cursor - body_rows // 2, len(entries) - body_rows))
+    if not entries:
+        output.append("  (no terms saved yet; press a to add your first one)\n")
+    for position in range(top, min(top + body_rows, len(entries))):
+        line_index = entries[position]
+        pointer = _paint("❯ ", "cyan", "bold") if position == cursor else "  "
+        box = _paint("[x] ", "green") if line_index in selected else "[ ] "
+        text = lines[line_index].strip()[: columns - 8]
+        output.append(pointer + box + text + "\n")
+    output.append(f"\033[{rows - 1};1H")
+    if message:
+        output.append(_paint(message[: columns - 1], "yellow") + "\n")
+    else:
+        output.append("\n")
+    guide = "↑/↓ move · space select · m mark/unmark all · a add · r remove · q save and quit"
+    output.append(_paint(guide[: columns - 1], "dim"))
+    sys.stdout.write("".join(output))
+    sys.stdout.flush()
+
+
+def _terms_editor() -> int:
+    lines = _term_file_lines()
+    cursor = 0
+    selected: set[int] = set()
+    message = ""
+    sys.stdout.write("\033[?1049h\033[?25l")  # alternate screen, hidden cursor
+    try:
+        while True:
+            entries = _entry_indexes(lines)
+            cursor = max(0, min(cursor, len(entries) - 1))
+            _draw_terms_screen(lines, entries, cursor, selected, message)
+            message = ""
+            key = _read_key()
+            if key in ("q", "esc"):
+                break
+            if key in ("up", "k") and entries:
+                cursor = max(0, cursor - 1)
+            elif key in ("down", "j") and entries:
+                cursor = min(len(entries) - 1, cursor + 1)
+            elif key == " " and entries:
+                line_index = entries[cursor]
+                selected.symmetric_difference_update({line_index})
+            elif key == "m" and entries:
+                if len(selected) == len(entries):
+                    selected.clear()
+                else:
+                    selected = set(entries)
+            elif key == "a":
+                sys.stdout.write(f"\033[{shutil.get_terminal_size().lines - 1};1H\033[K")
+                sys.stdout.write("\033[?25h")
+                sys.stdout.flush()
+                try:
+                    text = _ask(
+                        "New term(s), spaces separate, 'single quotes' group: "
+                    )
+                    new_terms = _parse_term_string(text) if text else []
+                except SubthisError as error:
+                    new_terms = []
+                    message = str(error)
+                sys.stdout.write("\033[?25l")
+                lines.extend(new_terms)
+                if new_terms:
+                    message = f"Added: {', '.join(new_terms)}"
+            elif key == "r":
+                if not selected:
+                    message = "Nothing is selected. Move with ↑/↓ and press space first."
+                    continue
+                sys.stdout.write(f"\033[{shutil.get_terminal_size().lines - 1};1H\033[K")
+                sys.stdout.write("\033[?25h")
+                sys.stdout.flush()
+                answer = _ask(
+                    f"Delete {len(selected)} term(s)? Type y (yes) or n (no): "
+                ).lower()
+                sys.stdout.write("\033[?25l")
+                if answer.startswith("y"):
+                    lines = [
+                        line for index, line in enumerate(lines) if index not in selected
+                    ]
+                    message = "Deleted."
+                    selected = set()
+                else:
+                    message = "Nothing was deleted."
+    finally:
+        sys.stdout.write("\033[?25h\033[?1049l")  # cursor back, normal screen
+        sys.stdout.flush()
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    TERMS_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    remaining = len(_entry_indexes(lines))
+    _say_ok(f"Saved {remaining} term(s) to {TERMS_FILE}")
+    return 0
+
+
 def _example_command() -> str:
     if sys.platform == "win32":
         return r"subthis C:\Users\you\Videos\lesson.mp4"
@@ -712,16 +1062,7 @@ def _example_command() -> str:
 
 
 def run_setup() -> int:
-    global _COLOR
     interactive = sys.stdin is not None and sys.stdin.isatty()
-    _COLOR = (
-        not os.environ.get("NO_COLOR")
-        and sys.stdout is not None
-        and sys.stdout.isatty()
-    )
-    if _COLOR and sys.platform == "win32":
-        os.system("")  # flips older Windows consoles into ANSI color mode
-
     _banner(f"Welcome to subthis  ·  v{__version__}")
     print(
         "\nsubthis turns a video into subtitles. This one-time setup takes about\n"
@@ -867,6 +1208,20 @@ tip: instead of typing the file location, type "subthis " and drag the
 video from {drag_source} into this window, then press Enter.
 
 the captions are saved as an .srt file next to your video.
+
+teaching subthis your special words (names, brands, jargon):
+  for one run:        subthis video.mp4 --term "OpenAI 'API Platform'"
+                      (spaces separate terms; single quotes group a
+                       multi-word term into one)
+  for every video:    subthis config terms "OpenAI 'API Platform'"
+  for one folder:     put the terms in a file named {PROJECT_TERMS_FILENAME}
+                      next to your videos, one term per line
+
+other commands:
+  subthis setup            first-time setup (API key, checks)
+  subthis config key       replace your saved OpenAI key
+  subthis config terms     review, add, and remove saved terms
+  subthis config open on   open the folder with the file when done
 """
 
 
@@ -887,7 +1242,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=3,
         help="maximum words per subtitle (default: 3)",
     )
-    parser.add_argument("--term", action="append", default=[], help="extra canonical term; repeat as needed")
+    parser.add_argument(
+        "--term",
+        action="append",
+        default=[],
+        help=(
+            "extra terms for this run, separated by spaces; wrap a multi-word term "
+            "in single quotes, e.g. --term \"OpenAI 'API Platform'\""
+        ),
+    )
     parser.add_argument(
         "--terms-file",
         type=Path,
@@ -906,13 +1269,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
+    _init_color()
     if not arguments or arguments[0] == "help":
         build_parser().print_help()
         return 0
+    if arguments[0] not in ("--version", "-h", "--help"):
+        _maybe_offer_update(arguments)
     if arguments[0] == "setup":
         if len(arguments) > 1:
             raise SubthisError("setup takes no further arguments.")
         return run_setup()
+    if arguments[0] == "config":
+        return run_config(arguments[1:])
     args = build_parser().parse_args(arguments)
     video = args.video.expanduser().resolve()
     if not video.is_file():
@@ -924,7 +1292,14 @@ def run(argv: Sequence[str] | None = None) -> int:
         raise SubthisError("The output path must differ from the input path.")
     if output.exists() and not args.force:
         raise SubthisError(f"Output already exists: {output}. Use --force to replace it.")
-    aliases, terms = load_terms(args.terms_file.expanduser(), args.term)
+    additions: list[str] = []
+    project_terms = video.parent / PROJECT_TERMS_FILENAME
+    if project_terms.is_file():
+        print(f"Using the terms from {project_terms}", file=sys.stderr)
+        additions.extend(project_terms.read_text(encoding="utf-8").splitlines())
+    for term_string in args.term:
+        additions.extend(_parse_term_string(term_string))
+    aliases, terms = load_terms(args.terms_file.expanduser(), additions)
     config = Config(
         api_key=_load_api_key(),
         aliases=aliases,
@@ -943,7 +1318,17 @@ def run(argv: Sequence[str] | None = None) -> int:
     finally:
         with contextlib.suppress(FileNotFoundError):
             temporary_output.unlink()
-    print(f"Wrote {len(cues)} subtitles to {output}")
+    print()
+    _say_ok(f"Done! {len(cues)} subtitles were created.")
+    print("  Your subtitle file is here:")
+    print("    " + _paint(str(output), "bold"))
+    if (
+        _load_settings().get("open_when_done")
+        and sys.stdout is not None
+        and sys.stdout.isatty()
+    ):
+        print("  Opening its folder...")
+        _reveal_in_file_manager(output)
     return 0
 
 

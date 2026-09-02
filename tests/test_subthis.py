@@ -227,6 +227,92 @@ class PromptForKeyTests(unittest.TestCase):
         self.assertIn(subthis.BILLING_URL, str(caught.exception))
 
 
+class TermParsingTests(unittest.TestCase):
+    def test_splits_on_spaces_and_groups_single_quoted_phrases(self) -> None:
+        actual = subthis._parse_term_string("OpenAI 'API Platform' ChatGPT")
+
+        self.assertEqual(actual, ["OpenAI", "API Platform", "ChatGPT"])
+
+    def test_unclosed_quote_raises_a_clear_error(self) -> None:
+        with self.assertRaises(subthis.SubthisError) as caught:
+            subthis._parse_term_string("OpenAI 'API Platform")
+        self.assertIn("quote", str(caught.exception))
+
+
+class UpdateOfferTests(unittest.TestCase):
+    def test_version_tuple_orders_versions(self) -> None:
+        self.assertLess(subthis._version_tuple("1.4.0"), subthis._version_tuple("1.10.0"))
+        self.assertLessEqual(subthis._version_tuple("1.4.0"), subthis._version_tuple("1.4.0"))
+
+    def test_skip_env_var_prevents_any_network_call(self) -> None:
+        with mock.patch.dict(os.environ, {"SUBTHIS_SKIP_UPDATE": "1"}), mock.patch.object(
+            subthis, "_latest_pypi_version"
+        ) as fetch:
+            subthis._maybe_offer_update(["video.mp4"])
+        fetch.assert_not_called()
+
+    def test_declining_prints_the_update_command_and_continues(self) -> None:
+        tty = mock.Mock()
+        tty.isatty.return_value = True
+        with mock.patch.object(subthis.sys, "stdin", tty), mock.patch.object(
+            subthis.sys, "stdout", tty
+        ), mock.patch.object(
+            subthis, "_latest_pypi_version", return_value="99.0.0"
+        ), mock.patch.object(subthis, "_ask", return_value="n"), mock.patch(
+            "builtins.print"
+        ) as printed:
+            subthis._maybe_offer_update(["video.mp4"])
+        output = "\n".join(str(call) for call in printed.call_args_list)
+        self.assertIn(subthis._update_command(), output)
+
+
+class ConfigCommandTests(unittest.TestCase):
+    def test_config_key_refuses_a_key_on_the_command_line(self) -> None:
+        with self.assertRaises(subthis.SubthisError):
+            subthis.run_config(["key", "sk-something"])
+
+    def test_config_terms_appends_parsed_terms_to_the_global_file(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            terms_file = Path(tmp) / "terms.txt"
+            with mock.patch.object(subthis, "CONFIG_DIR", Path(tmp)), mock.patch.object(
+                subthis, "TERMS_FILE", terms_file
+            ):
+                self.assertEqual(subthis.run_config(["terms", "OpenAI 'API Platform'"]), 0)
+            content = terms_file.read_text(encoding="utf-8")
+        self.assertIn("OpenAI\n", content)
+        self.assertIn("API Platform\n", content)
+
+    def test_config_without_subcommand_shows_usage(self) -> None:
+        with self.assertRaises(subthis.SubthisError) as caught:
+            subthis.run_config([])
+        self.assertIn("subthis config key", str(caught.exception))
+
+
+class SettingsAndRevealTests(unittest.TestCase):
+    def test_config_open_saves_and_reports_the_setting(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(subthis, "CONFIG_DIR", Path(tmp)), mock.patch.object(
+                subthis, "SETTINGS_FILE", Path(tmp) / "settings.json"
+            ):
+                self.assertEqual(subthis.run_config(["open", "on"]), 0)
+                self.assertTrue(subthis._load_settings()["open_when_done"])
+                self.assertEqual(subthis.run_config(["open", "off"]), 0)
+                self.assertFalse(subthis._load_settings()["open_when_done"])
+
+    def test_reveal_never_raises_even_when_everything_fails(self) -> None:
+        with mock.patch.object(subthis.subprocess, "run", side_effect=OSError("boom")):
+            subthis._reveal_in_file_manager(Path("/nonexistent/file.srt"))
+
+    def test_entry_indexes_skip_comments_and_blank_lines(self) -> None:
+        lines = ["# comment", "", "OpenAI", "  ", "Wispr Flow = alias", "# more"]
+
+        self.assertEqual(subthis._entry_indexes(lines), [2, 4])
+
+
 class SetupDispatchTests(unittest.TestCase):
     def test_setup_rejects_extra_arguments(self) -> None:
         with self.assertRaises(subthis.SubthisError):
