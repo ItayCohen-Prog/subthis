@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subthis"
+version = "1.1.0"
+description = "Create short, accurately worded SRT captions from a video"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Bram" }]
+keywords = ["subtitles", "srt", "captions", "transcription", "whisper"]
+
+[project.scripts]
+subthis = "subthis:main"
+
+[tool.setuptools]
+py-modules = ["subthis"]
