@@ -35,7 +35,7 @@ If the `subthis` command isn't found after installing, run `uv tool update-shell
 subthis setup
 ```
 
-Checks for ffmpeg, asks for your OpenAI API key (input hidden), verifies it against the API, and stores it in the config directory:
+Checks for ffmpeg, asks for your OpenAI API key, verifies it against the API, and stores it in the config directory:
 
 - Linux/macOS: `~/.config/subthis/`
 - Windows: `%APPDATA%\subthis\`

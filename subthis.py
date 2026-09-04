@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-__version__ = "1.8.3"
+__version__ = "1.8.4"
 
 API_URL = "https://api.openai.com/v1/audio/transcriptions"
 KEY_CHECK_URL = "https://api.openai.com/v1/models/whisper-1"
@@ -186,11 +186,12 @@ def strip_caption_punctuation(text: str) -> str:
         if not unicodedata.category(char).startswith("P"):
             kept.append(char)
             continue
-        if char in "'׳’":
-            before = characters[index - 1] if index else ""
-            after = characters[index + 1] if index + 1 < len(characters) else ""
-            if before.isalpha() and after.isalpha():
-                kept.append(char)
+        before = characters[index - 1] if index else ""
+        after = characters[index + 1] if index + 1 < len(characters) else ""
+        if char in "'׳’" and before.isalpha() and after.isalpha():
+            kept.append(char)
+        elif char in ".,:" and before.isdigit() and after.isdigit():
+            kept.append(char)  # 3.5, 1,000, 10:30
     return " ".join("".join(kept).split())
 
 
@@ -269,8 +270,8 @@ def align_accurate_words(text: str, timed_words: Sequence[TimedWord]) -> list[Ti
                 for token, source in zip(tokens, timed_words[w_start:w_end])
             )
             continue
-        if tag == "delete":
-            continue
+        # "delete" (a word only the accurate pass heard) falls through and is
+        # spread across the gap between its timed neighbours.
         if tag == "replace" and (a_end - a_start) == (w_end - w_start):
             # Same number of words on both sides (a phonetic respelling, a
             # number written differently): keep each timing word's real span
@@ -341,6 +342,8 @@ def make_cues(
     ]
     if not clean_words:
         return []
+    # A container can under-report its duration; never clamp real speech to 1 ms.
+    media_end = max(media_end, max(word.end for word in clean_words))
 
     # Split into phrases at real pauses, then balance each phrase into groups
     # (7 words become 3+2+2, never 3+3+1) so no orphan cue trails a sentence.
@@ -355,8 +358,14 @@ def make_cues(
     cues: list[Cue] = []
     for index, group in enumerate(groups):
         start = group[0].start
-        next_start = groups[index + 1][0].start if index + 1 < len(groups) else media_end
-        latest_allowed = max(next_start - gap, start + 0.001)
+        is_last = index + 1 >= len(groups)
+        # The last line has no successor to hand off to; holding it until the
+        # media ends would leave it up over a whole outro, so it hangs like a
+        # non-holding cue does.
+        next_start = (
+            max(group[-1].end + hang, start + min_cue) if is_last else groups[index + 1][0].start
+        )
+        latest_allowed = max(next_start - (0.0 if is_last else gap), start + 0.001)
         if hold_through_silence:
             end = min(latest_allowed, media_end)
         else:
@@ -902,6 +911,8 @@ def _flush_pending_input() -> None:
 
 
 def _ask(prompt: str) -> str:
+    if sys.stdin is None:
+        return ""
     _flush_pending_input()
     try:
         return input(_paint(prompt, "bold")).strip()
@@ -1003,8 +1014,11 @@ def _latest_pypi_version() -> str | None:
 def _update_command() -> str:
     """Pick the updater that actually installed this copy."""
     prefix = str(Path(sys.prefix).resolve()).lower()
-    if "pipx" in prefix and shutil.which("pipx"):
+    parts = set(re.split(r"[\\/]", prefix))
+    if "pipx" in parts and shutil.which("pipx"):
         return "pipx upgrade subthis"
+    if "uv" in parts and shutil.which("uv"):
+        return "uv tool upgrade subthis"
     if shutil.which("uv"):
         return "uv tool upgrade subthis"
     if shutil.which("pipx"):
@@ -1021,14 +1035,15 @@ def _maybe_offer_update(arguments: Sequence[str]) -> None:
         return
     settings = _load_settings()
     last_check = settings.get("last_update_check")
-    if isinstance(last_check, (int, float)) and time.time() - last_check < 3600:
+    if isinstance(last_check, (int, float)) and 0 <= time.time() - last_check < 3600:
         return  # once an hour: cheap, and a fresh release shows up the same day
     print(_paint("checking for a newer version...", "dim"), flush=True)
     latest = _latest_pypi_version()
-    if latest:
-        settings["last_update_check"] = time.time()
-        with contextlib.suppress(OSError):
-            _save_settings(settings)
+    # Stamp the attempt either way: an offline machine must not pay the
+    # network timeout on every single run.
+    settings["last_update_check"] = time.time()
+    with contextlib.suppress(OSError, SubthisError):
+        _save_settings(settings)
     if not latest or _version_tuple(latest) <= _version_tuple(__version__):
         return
     print(
@@ -1063,6 +1078,8 @@ def _maybe_offer_update(arguments: Sequence[str]) -> None:
         _say_note(f"Could not start the updater ({error}). Run this yourself later:\n    {command}")
         return
     fresh = shutil.which("subthis")
+    if fresh is None and sys.argv and Path(sys.argv[0]).is_file():
+        fresh = sys.argv[0]  # the tool directory is not on PATH yet
     if result.returncode != 0 or fresh is None:
         tail = " | ".join(line for line in result.stdout.strip().splitlines()[-3:] if line.strip())
         _say_note(
@@ -1074,8 +1091,14 @@ def _maybe_offer_update(arguments: Sequence[str]) -> None:
     _say_ok("Updated. Continuing right where you were...\n")
     environment = {**os.environ, "SUBTHIS_SKIP_UPDATE": "1"}
     # Let the child own Ctrl+C so the user does not see "cancelled" twice.
+    # SIG_IGN would survive exec and leave the child deaf to Ctrl+C too, so
+    # the child restores the default before it starts (this path is POSIX-only).
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    completed = subprocess.run([fresh, *arguments], env=environment)
+    completed = subprocess.run(
+        [fresh, *arguments],
+        env=environment,
+        preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
+    )
     raise SystemExit(completed.returncode)
 
 
@@ -1107,7 +1130,22 @@ def _write_atomically(path: Path, content: str) -> None:
             temporary.unlink()
 
 
+def _settings_file_is_corrupt() -> bool:
+    try:
+        json.loads(SETTINGS_FILE.read_text(encoding="utf-8-sig"))
+    except OSError:
+        return False  # missing or unreadable: nothing to lose
+    except ValueError:
+        return True
+    return False
+
+
 def _save_settings(settings: dict) -> None:
+    if _settings_file_is_corrupt():
+        raise SubthisError(
+            f"{SETTINGS_FILE} is not valid JSON, so nothing was saved (your other settings\n"
+            "would be lost). Fix the file or delete it, then try again."
+        )
     _write_atomically(SETTINGS_FILE, json.dumps(settings, indent=2) + "\n")
 
 
@@ -1279,9 +1317,17 @@ def _write_env_file(api_key: str) -> None:
         # and a raw fd would be opened in text mode and double the line endings.
         ENV_FILE.write_text(content, encoding="utf-8")
         return
-    descriptor = os.open(ENV_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(content)
+    # Write beside the file and swap it in, so an interrupted save never
+    # leaves an empty .env and a lost key behind.
+    temporary = ENV_FILE.with_name(f".{ENV_FILE.name}.{os.getpid()}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        os.replace(temporary, ENV_FILE)
+    finally:
+        with contextlib.suppress(OSError):
+            temporary.unlink()
     with contextlib.suppress(OSError):
         os.chmod(ENV_FILE, 0o600)
 
@@ -1440,6 +1486,14 @@ def run_config(rest: Sequence[str]) -> int:
     terms = _parse_term_string(text)
     if not terms:
         raise SubthisError("No terms were given.")
+    for term in terms:
+        if term.startswith("#"):
+            raise SubthisError(f"'{term}' would be read as a comment in the terms file. Drop the #.")
+        if "=" in term or "|" in term:
+            raise SubthisError(
+                f"'{term}' contains = or |, which mark aliases in the terms file.\n"
+                f"Edit {TERMS_FILE} by hand for an alias line (Canonical = spelling | spelling)."
+            )
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     if not TERMS_FILE.exists():
         TERMS_FILE.write_text(TERMS_TEMPLATE, encoding="utf-8")
@@ -1622,7 +1676,7 @@ def _terms_editor() -> int:
                     message = f"Added: {', '.join(new_terms)}"
             elif key == "r":
                 if not selected:
-                    message = "Nothing is selected. Move with ↑/↓ and press space first."
+                    message = f"Nothing is selected. Move with {_SYM['arrows']} and press space first."
                     continue
                 sys.stdout.write(f"\033[{shutil.get_terminal_size().lines - 1};1H\033[K")
                 sys.stdout.write("\033[?25h")
@@ -1685,7 +1739,7 @@ def _example_command() -> str:
 
 def run_setup() -> int:
     interactive = _is_interactive()
-    _banner(f"Welcome to subthis  ·  v{__version__}")
+    _banner(f"Welcome to subthis  {_SYM['dot']}  v{__version__}")
     print(
         "\nsubthis turns a video into subtitles. This one-time setup takes about\n"
         "two minutes. Nothing on your computer is changed except subthis's own\n"
@@ -1809,6 +1863,12 @@ def _trim_overlap(words: list[TimedWord], chunk: AudioChunk, previous_end: float
     return [word for word in words if word.start >= boundary]
 
 
+def _trim_tail(words: Sequence[TimedWord], chunk_end: float) -> list[TimedWord]:
+    """The other half of _trim_overlap: drop what the next chunk will cover."""
+    boundary = chunk_end - CHUNK_OVERLAP_SECONDS / 2
+    return [word for word in words if word.start < boundary]
+
+
 def transcribe_video(video: Path, config: Config) -> tuple[list[Cue], float]:
     with tempfile.TemporaryDirectory(prefix="subthis-", ignore_cleanup_errors=True) as temporary:
         chunks, duration = extract_chunks(video, Path(temporary))
@@ -1854,6 +1914,10 @@ def transcribe_video(video: Path, config: Config) -> tuple[list[Cue], float]:
                 TimedWord(word.text, word.start + chunk.offset, word.end + chunk.offset)
                 for word in aligned
             ]
+            if previous_end is not None and all_words:
+                # The previous chunk keeps the words before the boundary, this
+                # one the words after it, so nothing shows up twice.
+                all_words[-1] = _trim_tail(all_words[-1], previous_end)
             all_words.append(_trim_overlap(shifted, chunk, previous_end))
             previous_end = chunk_end
         merged = merge_chunk_words(all_words)

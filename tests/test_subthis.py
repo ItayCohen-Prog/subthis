@@ -692,3 +692,67 @@ class SetupDispatchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AuditRegressionTests(unittest.TestCase):
+    def test_words_only_the_accurate_pass_heard_are_kept(self) -> None:
+        timed = [
+            subthis.TimedWord("we", 0.0, 0.3),
+            subthis.TimedWord("work", 0.3, 0.6),
+            subthis.TimedWord("with", 1.0, 1.3),
+        ]
+        aligned = subthis.align_accurate_words("we work today with", timed)
+        self.assertEqual([w.text for w in aligned], ["we", "work", "today", "with"])
+        today = aligned[2]
+        self.assertGreaterEqual(today.start, 0.6)
+        self.assertLessEqual(today.end, 1.0)
+
+    def test_overlap_is_split_between_both_chunks(self) -> None:
+        half = subthis.CHUNK_OVERLAP_SECONDS / 2
+        chunk_end = 1201.5
+        boundary = chunk_end - half
+        tail = [
+            subthis.TimedWord("before", boundary - 0.4, boundary - 0.1),
+            subthis.TimedWord("straddle", boundary + 0.1, boundary + 0.4),
+        ]
+        head = [
+            subthis.TimedWord("early", boundary - 0.2, boundary + 0.1),
+            subthis.TimedWord("after", boundary + 0.1, boundary + 0.4),
+        ]
+        chunk = subthis.AudioChunk(Path("chunk-0001.ogg"), 1200.0, 1201.5)
+        self.assertEqual([w.text for w in subthis._trim_tail(tail, chunk_end)], ["before"])
+        self.assertEqual([w.text for w in subthis._trim_overlap(head, chunk, chunk_end)], ["after"])
+
+    def test_separators_inside_numbers_survive_punctuation_stripping(self) -> None:
+        self.assertEqual(subthis.strip_caption_punctuation("GPT 3.5 at 10:30, 1,000 times."), "GPT 3.5 at 10:30 1,000 times")
+
+    def test_last_cue_hangs_briefly_instead_of_holding_to_the_end_of_the_media(self) -> None:
+        words = [subthis.TimedWord("bye", 10.0, 10.4)]
+        (cue,) = subthis.make_cues(words, media_end=600.0, max_words=3, hold_through_silence=True)
+        self.assertAlmostEqual(cue.end, 10.0 + max(subthis.CUE_HANG_SECONDS + 0.4, subthis.MIN_CUE_SECONDS))
+
+    def test_words_past_the_probed_duration_still_get_real_cues(self) -> None:
+        words = [subthis.TimedWord("late", 100.0, 100.4), subthis.TimedWord("later", 100.5, 100.9)]
+        cues = subthis.make_cues(words, media_end=99.0, max_words=1, hold_through_silence=False)
+        for cue in cues:
+            self.assertGreater(cue.end - cue.start, 0.3)
+
+    def test_corrupt_settings_file_is_never_overwritten(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            broken = Path(tmp) / "settings.json"
+            broken.write_text('{"captions": {"words": 2},}', encoding="utf-8")
+            with mock.patch.object(subthis, "SETTINGS_FILE", broken):
+                with self.assertRaises(subthis.SubthisError):
+                    subthis._save_settings({"last_update_check": 1})
+            self.assertIn('"words": 2', broken.read_text(encoding="utf-8"))
+
+    def test_config_terms_rejects_comment_and_alias_syntax(self) -> None:
+        for bad in ("#tag", "a=b", "x|y"):
+            with self.assertRaises(subthis.SubthisError):
+                subthis.run_config(["terms", bad])
+
+    def test_ask_returns_empty_when_stdin_is_closed(self) -> None:
+        with mock.patch.object(subthis.sys, "stdin", None):
+            self.assertEqual(subthis._ask("? "), "")
