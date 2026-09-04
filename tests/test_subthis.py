@@ -597,8 +597,13 @@ class TerminalKeyTests(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", "pty is POSIX-only")
     def test_arrow_keys_arriving_in_one_write_are_not_mistaken_for_escape(self) -> None:
         import pty
+        import tty
 
         master, slave = pty.openpty()
+        # Leave canonical mode before writing. Linux hands pending bytes over
+        # when _read_key() switches modes later; macOS keeps them in the line
+        # buffer until a newline, and the read blocks forever.
+        tty.setcbreak(slave)
         try:
             with mock.patch.object(subthis.sys, "stdin", os.fdopen(slave, "r", closefd=False)):
                 os.write(master, b"\x1b[A")
