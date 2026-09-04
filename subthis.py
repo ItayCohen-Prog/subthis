@@ -829,7 +829,23 @@ _ANSI = {"green": "32", "red": "31", "yellow": "33", "cyan": "36", "bold": "1", 
 # (a Windows console on code page 1252 or 862, a LANG=C Linux session).
 _SYMBOLS_UTF8 = {"ok": "✓", "bad": "✗", "pointer": "❯", "arrows": "↑/↓", "dot": "·", "box": "╭─╮│╰╯"}
 _SYMBOLS_ASCII = {"ok": "OK", "bad": "X", "pointer": ">", "arrows": "up/down", "dot": "-", "box": "+-+|++"}
-_SYM = dict(_SYMBOLS_UTF8)
+
+
+def _pick_symbols() -> dict:
+    # The legacy Windows console (PowerShell outside Windows Terminal) has no
+    # font fallback, so ✓ ✗ ❯ render as boxes there.
+    legacy_windows_console = sys.platform == "win32" and not os.environ.get("WT_SESSION")
+    return dict(_SYMBOLS_ASCII if legacy_windows_console or not _stdout_is_utf8() else _SYMBOLS_UTF8)
+
+
+def _stdout_is_utf8() -> bool:
+    encoding = (getattr(sys.stdout, "encoding", None) or "").lower().replace("-", "").replace("_", "")
+    return encoding in ("utf8", "utf8sig")
+
+
+# Chosen at import so callers that skip _init_color() (tests, library use)
+# still get symbols the console can encode.
+_SYM = _pick_symbols()
 
 
 def _paint(text: str, *names: str) -> str:
@@ -855,11 +871,6 @@ def _banner(title: str) -> None:
     tl, hz, tr, vt, bl, br = _SYM["box"]
     line = hz * (len(title) + 2)
     print(_paint(f"{tl}{line}{tr}\n{vt} {title} {vt}\n{bl}{line}{br}", "cyan"))
-
-
-def _stdout_is_utf8() -> bool:
-    encoding = (getattr(sys.stdout, "encoding", None) or "").lower().replace("-", "").replace("_", "")
-    return encoding in ("utf8", "utf8sig")
 
 
 def _is_interactive() -> bool:
@@ -933,11 +944,8 @@ def _init_color() -> None:
         _VT_OK = _enable_windows_vt()
         if not _VT_OK:
             _COLOR = False
-    # The legacy Windows console (PowerShell outside Windows Terminal) has no
-    # font fallback, so ✓ ✗ ❯ render as boxes there.
-    legacy_windows_console = sys.platform == "win32" and not os.environ.get("WT_SESSION")
     _SYM.clear()
-    _SYM.update(_SYMBOLS_ASCII if legacy_windows_console or not _stdout_is_utf8() else _SYMBOLS_UTF8)
+    _SYM.update(_pick_symbols())
 
 
 _VT_OK = True
@@ -1980,9 +1988,10 @@ def run(argv: Sequence[str] | None = None) -> int:
             "as the wrong user, and lose your saved key on the next normal run."
         )
     raw_input_path = str(args.video)
-    # argparse already turned the text into a Path, which collapses "//",
-    # so look for "scheme:/" (two or more letters, so C:/ stays a drive).
-    if re.match(r"^[a-z][a-z0-9+.-]+:/", raw_input_path, re.IGNORECASE):
+    # argparse already turned the text into a Path, which collapses "//" and,
+    # on Windows, flips slashes to backslashes. So look for "scheme:/" or
+    # "scheme:\" (two or more letters, so C:/ stays a drive).
+    if re.match(r"^[a-z][a-z0-9+.-]+:[/\\]", raw_input_path, re.IGNORECASE):
         raise SubthisError(
             "subthis works on video files saved on this computer, not on links.\n"
             "Download the video first, then run subthis on the downloaded file."

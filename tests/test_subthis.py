@@ -293,10 +293,12 @@ class ChunkMergeTests(unittest.TestCase):
 
 class ConfigDirTests(unittest.TestCase):
     def test_uses_xdg_config_home_when_set(self) -> None:
+        # Path.home() keeps the path absolute on Windows too, where "/custom" has no drive.
+        custom = Path.home() / "custom" / "config"
         with mock.patch.object(subthis.sys, "platform", "linux"), mock.patch.dict(
-            os.environ, {"XDG_CONFIG_HOME": "/custom/config"}
+            os.environ, {"XDG_CONFIG_HOME": str(custom)}
         ):
-            self.assertEqual(subthis._config_dir(), Path("/custom/config/subthis"))
+            self.assertEqual(subthis._config_dir(), custom / "subthis")
 
     def test_defaults_to_dot_config_without_xdg(self) -> None:
         with mock.patch.object(subthis.sys, "platform", "linux"), mock.patch.dict(
