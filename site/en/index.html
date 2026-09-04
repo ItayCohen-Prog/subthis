@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=202609021608">
+<link rel="stylesheet" href="/assets/style.css?v=202609021927">
 </head>
 <body>
 <svg hidden aria-hidden="true" style="display:none">
@@ -27,7 +27,7 @@
 
 <header class="site-header">
   <div class="wrap">
-    <a class="logo" href="/en/"><span class="cap">אב</span>subthis</a>
+    <a class="logo" href="/en/"><img class="mark" src="/assets/favicon.svg" alt="" width="44" height="44">subthis</a>
     <nav class="site-nav" aria-label="Site">
       <a href="/en/docs/">Docs</a>
       <a href="https://github.com/ItayCohen-Prog/subthis">GitHub<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
@@ -188,6 +188,11 @@
 subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
           </li>
+          <li>
+            <h3>Not sure what a screen is asking?</h3>
+            <p>The docs walk through every screen of the first run exactly as you will see it: what it is for, what each line means, and what to do at each question.</p>
+            <a class="btn primary step-cta" href="/en/docs/#setup"><svg class="ic"><use href="#i-book"/></svg>Every first-run screen, explained</a>
+          </li>
         </ol>
       </div>
 
@@ -212,6 +217,11 @@ subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-
             <div class="copy-wrap"><pre class="code" dir="ltr">uv tool install subthis
 subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
+          </li>
+          <li>
+            <h3>Not sure what a screen is asking?</h3>
+            <p>The docs walk through every screen of the first run exactly as you will see it: what it is for, what each line means, and what to do at each question.</p>
+            <a class="btn primary step-cta" href="/en/docs/#setup"><svg class="ic"><use href="#i-book"/></svg>Every first-run screen, explained</a>
           </li>
         </ol>
       </div>
@@ -239,90 +249,16 @@ sudo pacman -S ffmpeg        # Arch</pre><button class="copy-btn" title="copy" a
 subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
             <p>Setup walks you through getting an OpenAI key, step by step, even if you've never used it before.</p>
           </li>
+          <li>
+            <h3>Not sure what a screen is asking?</h3>
+            <p>The docs walk through every screen of the first run exactly as you will see it: what it is for, what each line means, and what to do at each question.</p>
+            <a class="btn primary step-cta" href="/en/docs/#setup"><svg class="ic"><use href="#i-book"/></svg>Every first-run screen, explained</a>
+          </li>
         </ol>
       </div>
     </div>
   </section>
 
-  <section class="block reveal" id="how">
-    <div class="wrap">
-      <p class="cue-label"><span class="n">4</span><span>00:01:22,000 --&gt; 00:01:51,000</span></p>
-      <h2>How it works</h2>
-      <p class="lede">Two transcriptions are better than one. subthis runs both and merges the best of each.</p>
-      <div class="pipeline">
-        <div class="stage">
-          <span class="tc">00:00 → 00:20</span>
-          <div><h3>Listen twice</h3><p>The audio goes to OpenAI twice: one model for the most accurate wording, another for exact word-by-word timing.</p></div>
-        </div>
-        <div class="stage">
-          <span class="tc">00:20 → 00:40</span>
-          <div><h3>Align every word</h3><p>The accurate words get matched to the precise timestamps, so "OpenAI" lands exactly where the speaker said it, even when the timing model heard "אופן איי איי".</p></div>
-        </div>
-        <div class="stage">
-          <span class="tc">00:40 → done</span>
-          <div><h3>Write short cues</h3><p>Words are grouped into cues of at most three, timed to hold across pauses, and written as a clean .srt file next to your video.</p></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="block reveal" id="features">
-    <div class="wrap">
-      <p class="cue-label"><span class="n">5</span><span>00:01:51,000 --&gt; 00:02:24,000</span></p>
-      <h2>What you get</h2>
-      <div class="grid">
-        <div class="card"><h3>Hebrew meets English</h3><p>Company names, tools, and jargon keep their original English spelling inside Hebrew speech. קלוד becomes Claude, every time.</p></div>
-        <div class="card"><h3>Terms you teach</h3><p>Add your own names and phrases per run, per folder, or globally, with an interactive editor for the saved list.</p></div>
-        <div class="card"><h3>Setup that guides</h3><p>First time with the OpenAI API? Setup walks you to a key and five dollars of credit, and tests the key before saving it.</p></div>
-        <div class="card"><h3>Errors that help</h3><p>A revoked key or an empty balance produces a plain sentence with the exact link to fix it, not a stack trace.</p></div>
-        <div class="card"><h3>Updates offer themselves</h3><p>When a new version ships, subthis asks once, updates, and reruns your exact command from where you were.</p></div>
-        <div class="card"><h3>Long videos welcome</h3><p>Hours-long recordings get chunked, transcribed, and merged automatically, staying under upload limits.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="block reveal" id="setup-shot">
-    <div class="wrap">
-      <p class="cue-label"><span class="n">6</span><span>00:02:24,000 --&gt; 00:02:46,000</span></p>
-      <h2>Setup, exactly as you'll see it</h2>
-      <p class="lede">Real output from <code>subthis setup</code>, captured unedited.</p>
-      <div class="term">
-        <div class="term-bar"><i></i><i></i><i></i><span>subthis setup</span></div>
-        <pre dir="ltr"><span class="cyn">╭───────────────────────────────╮
-│ Welcome to subthis  ·  v1.4.0 │
-╰───────────────────────────────╯</span>
-
-subthis turns a video into subtitles. This one-time setup takes about
-two minutes. Nothing on your computer is changed except subthis's own
-settings folder: ~/.config/subthis
-
-<span class="ok">  ✓ </span>ffmpeg is installed (subthis uses it to read the sound from your videos)
-
-subthis sends your video's audio to OpenAI (the company behind ChatGPT)
-to turn the speech into text. For that you need your own OpenAI key:
-a long code starting with sk- that acts like a password. It is saved
-only on this computer.
-
-Here's what happens next:
-  1. OpenAI's key page opens in your browser.
-  2. Click 'Create new secret key', then 'Copy'.
-  3. Come back here and paste it.
-
-Press Enter to open the key page in your browser...
-    <span class="cyn">https://platform.openai.com/api-keys</span>
-
-Paste your OpenAI key here and press Enter: sk-••••••••••••
-  Checking your key with OpenAI...
-<span class="ok">  ✓ </span>The key works and your account has credit.
-<span class="ok">  ✓ </span>Key saved to ~/.config/subthis/.env
-<span class="ok">  ✓ </span>Created a terms file at ~/.config/subthis/terms.txt
-
-<span class="cyn">╭─────────────────╮
-│ You're all set! │
-╰─────────────────╯</span></pre>
-      </div>
-    </div>
-  </section>
 </main>
 
 <footer class="site-footer">
@@ -336,6 +272,6 @@ Paste your OpenAI key here and press Enter: sk-•••••••••••
   </div>
 </footer>
 
-<script src="/assets/site.js?v=202609021608"></script>
+<script src="/assets/site.js?v=202609021927"></script>
 </body>
 </html>

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Rubik:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=202609021608">
+<link rel="stylesheet" href="/assets/style.css?v=202609021927">
 </head>
 <body>
 <svg hidden aria-hidden="true" style="display:none">
@@ -25,9 +25,9 @@
 
 <header class="site-header">
   <div class="wrap">
-    <a class="logo" href="/en/"><span class="cap">אב</span>subthis</a>
+    <a class="logo" href="/en/"><img class="mark" src="/assets/favicon.svg" alt="" width="44" height="44">subthis</a>
     <nav class="site-nav" aria-label="Site">
-      <a href="/en/docs/" aria-current="page">Docs</a>
+      <a href="/en/">Home</a>
       <a href="https://github.com/ItayCohen-Prog/subthis">GitHub<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
       <a href="https://pypi.org/project/subthis/">PyPI<svg class="ic ic-ext"><use href="#i-ext"/></svg></a>
       <div class="lang-switch" aria-label="Language">
@@ -45,7 +45,7 @@
       <li><a href="#setup"><span class="toc-num">2</span>Setup</a></li>
       <li><a href="#use"><span class="toc-num">3</span>Make subtitles</a></li>
       <li><a href="#terms"><span class="toc-num">4</span>Teach it terms</a></li>
-      <li><a href="#config"><span class="toc-num">5</span>Config</a></li>
+      <li><a href="#config"><span class="toc-num">5</span>Options and settings</a></li>
       <li><a href="#updates"><span class="toc-num">6</span>Updates</a></li>
       <li><a href="#troubleshooting"><span class="toc-num">7</span>Troubleshooting</a></li>
       <li><a href="#reference"><span class="toc-num">8</span>CLI reference</a></li>
@@ -78,54 +78,264 @@ uv tool install subthis</pre><button class="copy-btn" title="copy" aria-label="c
     </section>
 
     <section id="setup">
-      <h2>2. Setup</h2>
+      <h2>2. First run</h2>
       <div class="copy-wrap"><pre class="code" dir="ltr">subthis setup</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
-      <p>Setup is a guided, one-time wizard. It:</p>
-      <ul>
-        <li>checks that ffmpeg is installed, and tells you how to install it if not;</li>
-        <li>explains each step before touching your browser: pressing Enter opens OpenAI's key page (no account yet? the site signs you up first) with click-by-click instructions for creating and copying a key;</li>
-        <li>tests the key you paste immediately: an invalid or revoked key re-prompts, an account with no credit gets click-by-click guidance for adding the 5-dollar minimum of prepaid credit (roughly five hours of video) and a re-check;</li>
-        <li>saves the key to subthis's own settings folder (<code>~/.config/subthis</code> on Linux and macOS, <code>%APPDATA%\subthis</code> on Windows) and nowhere else.</li>
-      </ul>
-      <p>An <code>OPENAI_API_KEY</code> environment variable, if set, overrides the stored key.</p>
+      <p>The first run is a one-time wizard. Every screen is shown below exactly as it appears in the terminal, with what it is for, what each line means, and what to do. On most machines it takes about two minutes, two presses of Enter, and one paste.</p>
+
+      <h3>Screen 1: welcome</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="cyn">╭───────────────────────────────╮
+│ Welcome to subthis  ·  v1.7.0 │
+╰───────────────────────────────╯</span>
+
+subthis turns a video into subtitles. This one-time setup takes about
+two minutes. Nothing on your computer is changed except subthis's own
+settings folder: ~/.config/subthis</pre></div>
+      <p>Purpose: tell you what is about to happen. Nothing on your computer changes except subthis's own settings folder, whose path is on the last line. Nothing to do here.</p>
+
+      <h3>Screen 2: the ffmpeg check</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="ok">  ✓ </span>ffmpeg is installed (subthis uses it to read the sound from your videos)</pre></div>
+      <p>Purpose: confirm that ffmpeg, the program that reads the sound out of a video, is installed. A green check means you are fine. If you see this instead:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="warn">  ! </span>A helper program called ffmpeg is missing. It reads the sound from videos.
+    To install it: sudo apt install ffmpeg
+    Then run 'subthis setup' again.</pre></div>
+      <div class="callout">ffmpeg is missing. The <span dir="ltr">To install it:</span> line shows the install command for your system (Linux in the example). Run it, then run <code>subthis setup</code> again.</div>
+
+      <h3>Screen 3: why you need an OpenAI key</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr">subthis sends your video's audio to OpenAI (the company behind ChatGPT)
+to turn the speech into text. For that you need your own OpenAI key:
+a long code starting with sk- that acts like a password. It is saved
+only on this computer.</pre></div>
+      <p>Purpose: explain the mechanism. The audio goes to OpenAI to turn speech into text, which needs your own API key, a long code starting with <span dir="ltr">sk-</span> that works like a password and stays on your computer. If a key is already saved from an earlier run you will see <span dir="ltr">A key is already saved. Press Enter at the prompt below to keep it.</span> instead of the next screen, and an empty Enter keeps it.</p>
+
+      <h3>Screen 4: opening the key page</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr">Here's what happens next:
+  1. OpenAI's key page opens in your browser. No account yet? The site
+     will have you sign up first (same login as ChatGPT, and it's quick).
+  2. On the key page, click 'Create new secret key', give it any name,
+     click 'Create secret key', then 'Copy'. It is shown only this once.
+  3. Come back here and paste it.
+
+Press Enter to open the key page in your browser... </pre></div>
+      <p>Purpose: get a key. The three numbered lines describe what will happen, and the last line waits for Enter to open OpenAI's key page in your browser. If the browser does not open by itself, this is the address: <a href="https://platform.openai.com/api-keys" dir="ltr">platform.openai.com/api-keys</a></p>
+      <div class="callout">In the browser: if you have no OpenAI account the site asks you to sign up first (same login as ChatGPT). On the key page click <span dir="ltr">Create new secret key</span>, give it any name, click <span dir="ltr">Create secret key</span>, then <span dir="ltr">Copy</span>. The key is shown only once, so copy it before closing the dialog. Come back to the terminal.</div>
+
+      <h3>Screen 5: pasting and testing the key</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr">Paste your OpenAI key here and press Enter: sk-••••••••••••
+  Checking your key with OpenAI...
+<span class="ok">  ✓ </span>The key works and your account has credit.</pre></div>
+      <p>Purpose: make sure the key works before saving it. Paste the key (Ctrl+V, right-click and paste, or Ctrl+Shift+V in some terminals) and press Enter. subthis sends OpenAI one tiny request, costing a fraction of a cent, because only a real request reveals an account without credit. Two green checks mean the key is valid and the account has credit. Three other outcomes are possible:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="bad">  ✗ </span>OpenAI does not accept this key. It may be mistyped, expired,
+    or revoked. Copy a fresh one from:
+    https://platform.openai.com/api-keys
+Paste your OpenAI key here and press Enter: </pre></div>
+      <div class="callout">The key was rejected: probably pasted incompletely, expired, or revoked. Go back to the key page, create a new one, and paste it at the waiting prompt.</div>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="bad">  ✗ </span>The key itself works, but the account behind it has no credit yet.
+    The transcription service is prepaid, like a phone card. In the
+    billing page that opens next:
+      1. Click 'Add payment method' and enter your card details.
+      2. Click 'Add to credit balance' and choose 5 dollars (the
+         minimum; it covers roughly five hours of video).
+      3. If it offers auto-reload, you can switch that off.
+    Press Enter to open the billing page... 
+    Press Enter once your balance shows the credit, and it will be checked again... </pre></div>
+      <div class="callout">The key is fine but the account has no credit. OpenAI's service is prepaid, like a phone card. Enter opens the billing page. There: <span dir="ltr">Add payment method</span> to enter a card, then <span dir="ltr">Add to credit balance</span> and pick 5 dollars (the minimum; roughly five hours of video). If it offers auto-reload you can switch it off. Once the balance shows on the page, return to the terminal and press Enter, and the key is checked again.</div>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="warn">  ! </span>Could not reach OpenAI to test the key (network is unreachable).
+    Saving it anyway. subthis will say so clearly if it turns out not to work.</pre></div>
+      <div class="callout">OpenAI could not be reached right now (no internet, or a firewall). The key is saved untested. If it turns out not to work on the first real run, subthis says so plainly.</div>
+
+      <h3>Screen 6: saving, and the terms file</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="ok">  ✓ </span>Key saved to ~/.config/subthis/.env
+<span class="ok">  ✓ </span>Created a terms file at ~/.config/subthis/terms.txt
+    (optional: list names and jargon there and subthis will spell them right)</pre></div>
+      <p>Purpose: report what was saved. The first line is where the key went. The second says an empty terms file was created, where you can later list names and jargon so subthis spells them right (see <a href="#terms">Teach it terms</a>). Optional, nothing to do now. If the file already existed you see <span dir="ltr">Keeping your existing terms file</span> instead.</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="warn">  ! </span>The 'subthis' command is not reachable from new terminals yet. To fix:
+    installed with uv:   run  uv tool update-shell
+    installed with pipx: run  pipx ensurepath
+    then open a new terminal window.</pre></div>
+      <div class="callout">This note appears only if new terminals cannot find the <code>subthis</code> command yet. Run <code>uv tool update-shell</code> (or <code>pipx ensurepath</code> if you installed with pipx) and open a new terminal window.</div>
+
+      <h3>Screen 7: done</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis setup</span></div><pre dir="ltr"><span class="cyn">╭─────────────────╮
+│ You're all set! │
+╰─────────────────╯</span>
+
+To make subtitles, type subthis, a space, and then your video file:
+    subthis ~/Videos/lecture.mp4
+Tip: type "subthis " and drag the video from your files into this
+window, then press Enter. The subtitles are saved as an .srt file
+next to the video.</pre></div>
+      <p>Purpose: say you are done and show how to use it. Type <span dir="ltr">subthis</span>, a space, then the path of your video. The tip: after the space you can drag the video file from your file manager into the terminal window and the path is pasted for you. Enter starts the job, and the <span dir="ltr">.srt</span> file lands next to the video. Continue with <a href="#use">Make subtitles</a>.</p>
+
+      <p>An <code>OPENAI_API_KEY</code> environment variable, if set, overrides the stored key; the wizard warns about it on the first screen. To replace a key later: <code>subthis config key</code>.</p>
     </section>
 
     <section id="use">
       <h2>3. Make subtitles</h2>
+      <p>This is the whole basic use: type <span dir="ltr">subthis</span>, a space, the video file, and press Enter.</p>
       <div class="copy-wrap"><pre class="code" dir="ltr">subthis lecture.mp4</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
-      <p>That writes <code>lecture.srt</code> next to the video and prints the full path when done. Tip for the terminal-shy: type <code>subthis&nbsp;</code> then drag the video file into the terminal window and press Enter.</p>
-      <h3>Options</h3>
-      <div class="copy-wrap"><pre class="code" dir="ltr">subthis talk.mp4 -o subs/talk.srt      # choose the output path
-subthis clip.mp4 --max-words 2         # shorter cues (1, 2 or 3)
-subthis clip.mp4 --language he --language en   # expected languages
-subthis clip.mp4 --force               # overwrite an existing .srt</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
-      <p>Long videos are split into chunks, transcribed, and merged automatically. Each chunk goes to OpenAI twice: <code>gpt-transcribe</code> for the most accurate wording and <code>whisper-1</code> for word-level timing; subthis aligns the two so accurate words carry precise timestamps.</p>
+      <p>The easy way to get the path right: type <code>subthis&nbsp;</code> (with the space) and drag the video file from your file manager into the terminal window. The full path is pasted for you. Then Enter. This is what it looks like:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis lecture.mp4</span></div><pre dir="ltr"><span class="prompt">$</span> subthis lecture.mp4
+Transcribing your video...
+  still working on your video (1m00s so far)...
+
+<span class="ok">  ✓ </span>Done! 214 subtitles were created.
+  Your subtitle file is here:
+    /home/dana/Videos/lecture.srt</pre></div>
+      <p>Line by line: <span dir="ltr">Transcribing your video...</span> means the audio is on its way to OpenAI. While you wait, a <span dir="ltr">still working</span> line shows up now and then with the elapsed time, just so you know it is alive; count on about a minute per ten minutes of speech. At the end: how many subtitles were made, and below it the full path of the <span dir="ltr">.srt</span> file. It is saved next to the video, with the same name.</p>
+      <p>A long video is cut into parts automatically, each part is transcribed on its own, and the result is merged into one file. In the terminal that looks like this:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis lecture.mp4</span></div><pre dir="ltr"><span class="prompt">$</span> subthis lecture.mp4
+Long video: 3 parts of up to 20 minutes each. Each part takes roughly a minute per 10 minutes of speech.
+Transcribing part 1 of 3...
+Transcribing part 2 of 3...
+Transcribing part 3 of 3...
+
+<span class="ok">  ✓ </span>Done! 1,180 subtitles were created.
+  Your subtitle file is here:
+    /home/dana/Videos/lecture.srt</pre></div>
+      <p>If a subtitle file with that name already exists, subthis does not overwrite it quietly. It stops:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis lecture.mp4</span></div><pre dir="ltr"><span class="prompt">$</span> subthis lecture.mp4
+<span class="bad">subthis:</span> Output already exists: /home/dana/Videos/lecture.srt. Use --force to replace it.</pre></div>
+      <div class="callout">Delete or rename the old file, or add <code>--force</code> to the command to replace it. Every option of this kind is explained in <a href="#config">Options and settings</a>.</div>
+      <p>Now drag the <span dir="ltr">.srt</span> into your video editor (Premiere Pro, DaVinci Resolve, Final Cut Pro, CapCut, or any other editor that imports SRT) or a video player. How are the captions made? Each part goes to OpenAI twice, once for the most accurate wording and once for the timing of every word, and subthis aligns the two. You do not need to understand this to use it.</p>
     </section>
 
     <section id="terms">
       <h2>4. Teach it terms</h2>
-      <p>Terms are names and jargon subthis should spell correctly (and keep in English inside Hebrew speech). The syntax is the same everywhere: <strong>spaces separate terms, single quotes group a multi-word term</strong>.</p>
-      <div class="copy-wrap"><pre class="code" dir="ltr">subthis clip.mp4 --term "Omarchy 'Wispr Flow'"    # this run only
-subthis config terms "Omarchy 'Wispr Flow'"       # saved, every video
-subthis config terms                               # interactive editor</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
-      <p>The interactive editor lists your saved terms with a key guide at the bottom: arrows move, space selects, <code>m</code> marks or unmarks all, <code>r</code> removes the selected terms after a confirmation, <code>a</code> adds new ones, <code>q</code> saves and quits.</p>
+      <p>Terms are names and phrases subthis should spell correctly and keep in English inside Hebrew speech: companies, products, people, jargon. The syntax is the same everywhere: spaces separate terms, and single quotes group a multi-word term.</p>
+      <h3>Terms for one run</h3>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis clip.mp4 --term "Omarchy 'Wispr Flow'"</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+      <p>These apply to this run only. <code>--term</code> can be repeated in the same command.</p>
+      <h3>Saved terms for every video</h3>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config terms</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config terms "Omarchy 'Wispr Flow'"
+<span class="ok">  ✓ </span>Added 2 term(s) to ~/.config/subthis/terms.txt:
+    Omarchy
+    Wispr Flow
+  These now apply to every video you transcribe.</pre></div>
+      <p>The terms are appended to the saved terms file (its path is on the first line) and apply to every video from now on. With no argument, <code>subthis config terms</code> opens an interactive editor listing your saved terms, with a key guide at the bottom of the screen: arrows move, space selects, <code>m</code> marks or unmarks all, <code>r</code> removes the selected terms after a confirmation, <code>a</code> adds new ones, <code>q</code> saves and quits. It ends with <span dir="ltr">Saved N term(s) to …</span>.</p>
       <h3>Per-folder terms</h3>
-      <p>Put a file named <code>subthis-terms.txt</code> next to your videos and it is picked up automatically for any video in that folder. One term per line; spelling corrections use aliases:</p>
+      <p>Put a file named <code>subthis-terms.txt</code> next to your videos and it is picked up automatically for any video in that folder. One term per line. Spelling corrections use aliases: the correct name, an equals sign, then the wrong forms separated by a vertical bar.</p>
       <pre class="code" dir="ltr">MyCompany
 DaVinci Resolve = דה וינצ'י ריזולב | Davinci Resolve</pre>
+      <p>When such a file is found, subthis says so at the start of the run:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis clip.mp4</span></div><pre dir="ltr"><span class="prompt">$</span> subthis clip.mp4
+Using the terms from /home/dana/Videos/subthis-terms.txt
+Transcribing your video...</pre></div>
     </section>
 
     <section id="config">
-      <h2>5. Config</h2>
+      <h2>5. Options and settings</h2>
+      <p>There are two kinds. Command-line options affect one run only: add them after the file name. Persistent settings are saved once with <code>subthis config</code> and apply to every video after that.</p>
+
+      <h3>Options for one run</h3>
+
+      <h4 dir="ltr">-o, --output</h4>
+      <p>Where to save the subtitle file. Without it the file goes next to the video with the same name. A folder that does not exist is created.</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis talk.mp4 -o subs/talk.srt</span></div><pre dir="ltr"><span class="prompt">$</span> subthis talk.mp4 -o subs/talk.srt
+Transcribing your video...
+
+<span class="ok">  ✓ </span>Done! 96 subtitles were created.
+  Your subtitle file is here:
+    /home/dana/Videos/subs/talk.srt</pre></div>
+
+      <h4 dir="ltr">--max-words 1|2|3</h4>
+      <p>The most words allowed in one caption. Default 3 (or whatever you set with <code>config captions words</code>). 2 gives shorter, punchier captions that suit vertical video; 1 shows one word at a time. The terminal output is the same as a normal run.</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis clip.mp4 --max-words 2</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+
+      <h4 dir="ltr">--language</h4>
+      <p>Which languages to expect in the speech, as two-letter codes (<span dir="ltr">he</span> Hebrew, <span dir="ltr">en</span> English, <span dir="ltr">ru</span> Russian, <span dir="ltr">ar</span> Arabic, and so on). The default is Hebrew and English together, so most of the time you do not need this flag. Repeat it for each extra language.</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis clip.mp4 --language he --language ru</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+
+      <h4 dir="ltr">--force</h4>
+      <p>Replace an existing subtitle file. Without the flag subthis stops with <span dir="ltr">Output already exists</span> (see <a href="#use">Make subtitles</a>).</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis lecture.mp4 --force</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+
+      <h4 dir="ltr">--term</h4>
+      <p>Terms for this run only. Explained in <a href="#terms">Teach it terms</a>.</p>
+
+      <h4 dir="ltr">--terms-file</h4>
+      <p>Use a different terms file instead of the saved one. Handy when a client or project has its own list.</p>
+      <div class="copy-wrap"><pre class="code" dir="ltr">subthis clip.mp4 --terms-file ~/clients/acme-terms.txt</pre><button class="copy-btn" title="copy" aria-label="copy" data-done="copied"><svg class="ic ic-copy"><use href="#i-copy"/></svg><svg class="ic ic-check"><use href="#i-check"/></svg></button></div>
+
+      <h4 dir="ltr">--version, help, docs</h4>
+      <p><code>subthis --version</code> prints the version. <code>subthis help</code> (or <code>subthis</code> alone) prints the full help. <code>subthis docs</code> opens this documentation in the browser.</p>
+
+      <h3>Persistent settings</h3>
+      <p>Running <code>subthis config</code> with nothing after it lists the four subcommands:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config
+<span class="bad">subthis:</span> Usage:
+  subthis config key     change your saved OpenAI key
+  subthis config terms   review, add, and remove your saved terms
+  subthis config terms "term 'multi word term'"   add terms directly
+  subthis config open on|off   open the folder when subtitles are done
+  subthis config captions      view and tune caption timing and style</pre></div>
+
+      <h4 dir="ltr">subthis config key</h4>
+      <p>Replace the saved OpenAI key, for example after the old one was revoked. It opens the key page in the browser, waits for the paste, and checks the new key exactly like the first run does (validity and credit) before saving. For safety the key is not accepted as a command-line argument, only pasted at the waiting prompt.</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config key</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config key
+Let's replace your saved OpenAI key. Copy the new one from:
+    https://platform.openai.com/api-keys
+Paste your OpenAI key here and press Enter: sk-••••••••••••
+  Checking your key with OpenAI...
+<span class="ok">  ✓ </span>The key works and your account has credit.
+<span class="ok">  ✓ </span>New key saved to ~/.config/subthis/.env</pre></div>
+
+      <h4 dir="ltr">subthis config terms</h4>
+      <p>Edit the saved terms. Explained in <a href="#terms">Teach it terms</a>.</p>
+
+      <h4 dir="ltr">subthis config open on|off</h4>
+      <p>Whether to open the file manager with the subtitle file selected when a run finishes, in addition to printing the path. Off by default. Without <span dir="ltr">on</span> or <span dir="ltr">off</span> the command only shows the current state:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config open</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config open
+Opening the folder when done is currently: off
+Turn it on or off with: subthis config open on   (or off)</pre></div>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config open on</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config open on
+<span class="ok">  ✓ </span>subthis will now open the folder with your file when it finishes.</pre></div>
+      <p>From now on every run ends with one more line, and the file manager opens:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis lecture.mp4</span></div><pre dir="ltr"><span class="ok">  ✓ </span>Done! 214 subtitles were created.
+  Your subtitle file is here:
+    /home/dana/Videos/lecture.srt
+  Opening its folder...</pre></div>
+
+      <h4 dir="ltr">subthis config captions</h4>
+      <p>This is where you shape how captions look and are timed. The defaults follow subtitle-industry standards (Netflix's guidelines, for example), and most people never need to touch them. With no arguments it lists everything: the setting's name, its current value, whether that is the default or changed, and a short description.</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config captions</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config captions
+Caption settings (change one with: subthis config captions &lt;name&gt; &lt;value&gt;):
+
+  words        3        (default)  words per caption line, 1 to 3
+  pause        0.5      (default)  a silence this long (seconds) starts a new line
+  hang         0.5      (default)  how long a line stays after its last word (seconds)
+  min          0.83     (default)  minimum time a line stays on screen (seconds)
+  gap          0        (default)  empty space kept between one line and the next (seconds)
+  punctuation  remove   (default)  'remove' cleans captions, 'keep' leaves punctuation in
+  silence      hold     (default)  'hold' keeps a line up until the next one starts (captions connect), 'cut' ends it after the hang time
+
+  reset        put everything back to the defaults</pre></div>
+      <p>What each setting means:</p>
       <table>
-        <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+        <thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead>
         <tbody>
-          <tr><td dir="ltr"><code>subthis config key</code></td><td>Replace the saved OpenAI key. The new key is verified (validity and credit) before saving, exactly like in setup. Keys are never accepted as command-line arguments.</td></tr>
-          <tr><td dir="ltr"><code>subthis config terms</code></td><td>Open the interactive terms editor; with a quoted string argument, append terms directly.</td></tr>
-          <tr><td dir="ltr"><code>subthis config open on</code></td><td>After finishing, also open your file manager with the subtitle file selected (Explorer, Finder, or the Linux FileManager1 interface). <code>off</code> turns it back off.</td></tr>
-          <tr><td dir="ltr"><code>subthis config captions</code></td><td>View and tune caption behavior; saved for every future video, defaults match subtitle-industry standards. Settings: <code>words</code> per line (1-3), <code>pause</code> (a silence this long starts a new line), <code>hang</code> (how long a line outlives its last word), <code>min</code> (minimum time on screen), <code>gap</code> (empty space before the next line, default 0; all in seconds), <code>punctuation keep|remove</code>, and <code>silence hold|cut</code> (hold, the default, keeps each line up until the next one starts so captions connect; cut ends it after the hang time). <code>reset</code> restores the defaults. Example: <code>subthis config captions words 2</code>.</td></tr>
+          <tr><td dir="ltr"><code>words</code></td><td dir="ltr">3</td><td>The most words in one caption (1 to 3). The same as <code>--max-words</code>, but permanent.</td></tr>
+          <tr><td dir="ltr"><code>pause</code></td><td dir="ltr">0.5</td><td>A silence this long (seconds) starts a new caption. Smaller splits more where the speaker pauses for breath; larger merges more.</td></tr>
+          <tr><td dir="ltr"><code>hang</code></td><td dir="ltr">0.5</td><td>How long (seconds) a caption stays on screen after its last word was spoken, so the viewer has time to read.</td></tr>
+          <tr><td dir="ltr"><code>min</code></td><td dir="ltr">0.83</td><td>The minimum time (seconds) a caption is shown, even if the words were spoken faster.</td></tr>
+          <tr><td dir="ltr"><code>gap</code></td><td dir="ltr">0</td><td>Empty space (seconds) kept between the end of one caption and the start of the next. 0 means they touch.</td></tr>
+          <tr><td dir="ltr"><code>punctuation</code></td><td dir="ltr">remove</td><td><span dir="ltr">remove</span> strips punctuation from captions, as is usual for short captions. <span dir="ltr">keep</span> leaves it in.</td></tr>
+          <tr><td dir="ltr"><code>silence</code></td><td dir="ltr">hold</td><td>What happens in the silence between captions. <span dir="ltr">hold</span> keeps each caption up until the next one starts, so there is always text. <span dir="ltr">cut</span> removes it after the hang time and the screen stays empty until the next speech.</td></tr>
         </tbody>
       </table>
+      <p>Change one setting with a name and a value. It is saved and applies to every video from now on:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config captions words 2</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config captions words 2
+<span class="ok">  ✓ </span>Saved: words = 2. This applies to every video from now on.</pre></div>
+      <p>A name without a value shows that one setting:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config captions words</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config captions words
+words is 2  (words per caption line, 1 to 3)
+Change it with: subthis config captions words &lt;value&gt;</pre></div>
+      <p>An invalid value is rejected with an explanation. Times must be a number of seconds between 0 and 10:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config captions pause fast</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config captions pause fast
+<span class="bad">subthis:</span> pause must be a number of seconds, like 0.5</pre></div>
+      <p>And to put every setting back to the defaults at once:</p>
+      <div class="term"><div class="term-bar"><i></i><i></i><i></i><span dir="ltr">subthis config captions reset</span></div><pre dir="ltr"><span class="prompt">$</span> subthis config captions reset
+<span class="ok">  ✓ </span>Caption settings are back to the defaults.</pre></div>
+      <p>All persistent settings live in subthis's settings folder (<code>~/.config/subthis</code> on Linux and macOS, <code>%APPDATA%\subthis</code> on Windows). Deleting the folder resets everything, including the key.</p>
     </section>
 
     <section id="updates">
@@ -155,7 +365,7 @@ DaVinci Resolve = דה וינצ'י ריזולב | Davinci Resolve</pre>
         <tbody>
           <tr><td dir="ltr"><code>subthis &lt;video&gt;</code></td><td>Transcribe a video or audio file to <code>&lt;video&gt;.srt</code>.</td></tr>
           <tr><td dir="ltr"><code>subthis setup</code></td><td>Guided one-time setup: ffmpeg check, OpenAI key with live validation.</td></tr>
-          <tr><td dir="ltr"><code>subthis config key|terms|open</code></td><td>Change the key, edit saved terms, toggle open-folder-when-done.</td></tr>
+          <tr><td dir="ltr"><code>subthis config key|terms|open|captions</code></td><td>Change the key, edit saved terms, toggle open-folder-when-done, tune captions.</td></tr>
           <tr><td dir="ltr"><code>subthis help</code> / <code>subthis</code></td><td>Full help with an OS-specific quick start.</td></tr>
           <tr><td dir="ltr"><code>subthis docs</code></td><td>Open this documentation in the browser.</td></tr>
           <tr><td dir="ltr"><code>-o, --output PATH</code></td><td>Output SRT path (default: next to the input).</td></tr>
@@ -192,6 +402,6 @@ OPENAI_API_KEY=sk-... subthis input.mp4 -o output.srt --force
   </div>
 </footer>
 
-<script src="/assets/site.js?v=202609021608"></script>
+<script src="/assets/site.js?v=202609021927"></script>
 </body>
 </html>
